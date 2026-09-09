@@ -1,0 +1,91 @@
+.auth-chef-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #f8f9fa;
+  font-family: 'Segoe UI', sans-serif;
+}
+
+.auth-chef-card {
+  background: #ffffff;
+  padding: 2.5rem;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 420px;
+}
+
+.auth-chef-card h2 {
+  color: #002f6c;
+  margin: 0 0 4px 0;
+  font-size: 1.4rem;
+  text-align: center;
+}
+
+.subtitle {
+  text-align: center;
+  color: #666;
+  font-size: 0.85rem;
+  margin: 0 0 1.5rem 0;
+}
+
+.auth-chef-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.form-group-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group-block label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #495057;
+}
+
+.form-group-block input, .form-group-block select {
+  padding: 0.65rem;
+  border: 1px solid #dadce0;
+  border-radius: 4px;
+  font-size: 0.95rem;
+}
+
+.btn-auth-submit {
+  background-color: #002f6c;
+  color: white;
+  border: none;
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-weight: bold;
+  font-size: 1rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.btn-auth-submit:hover {
+  background-color: #001f4d;
+}
+
+.auth-toggle-link {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: 0.85rem;
+  color: #1a73e8;
+  cursor: pointer;
+}
+
+.alert-box {
+  padding: 0.75rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+.alert-box.success { background-color: #e6f4ea; color: #137333; }
+.alert-box.error { background-color: #fce8e6; color: #c5221f; }

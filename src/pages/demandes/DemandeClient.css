@@ -1,0 +1,112 @@
+.demande-container {
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  min-height: 100vh;
+  background-color: var(--bg-color);
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  margin: 0;
+  padding: 0;
+}
+
+/* En-tête institutionnel */
+.demande-top-bar {
+  background-color: #ffffff;
+  padding: 1rem 2rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.demande-top-bar h1 {
+  font-size: 1.2rem;
+  color: var(--primary-color);
+  margin: 0;
+}
+
+/* Zone de contenu principale divisée en 2 zones */
+.demande-content {
+  display: flex;
+  gap: 2rem;
+  padding: 2rem;
+  flex-wrap: wrap;
+}
+
+/* Zone 1 : Formulaire de dépôt */
+.demande-form-section {
+  flex: 1;
+  min-width: 320px;
+  background: white;
+  padding: 2rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+/* Zone 2 : Historique et suivi des statuts */
+.demande-history-section {
+  flex: 1.2;
+  min-width: 360px;
+  background: white;
+  padding: 2rem;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+}
+
+.form-title {
+  font-size: 1.1rem;
+  color: #333;
+  margin-top: 0;
+  margin-bottom: 1.5rem;
+  border-bottom: 2px solid var(--primary-light);
+  padding-bottom: 0.5rem;
+}
+
+/* Éléments du formulaire */
+.demande-form select, .demande-form input {
+  width: 100%;
+  padding: 0.65rem;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 0.95rem;
+  background-color: white;
+  box-sizing: border-box;
+}
+
+.btn-submit-demande {
+  width: 100%;
+  padding: 0.75rem;
+  background-color: var(--primary-color);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s ease;
+  margin-top: 1rem;
+}
+
+.btn-submit-demande:hover {
+  background-color: var(--primary-hover);
+}
+
+/* Tableau d'historique */
+.history-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.9rem;
+}
+
+.history-table th {
+  background-color: #f8f9fa;
+  color: #5f6368;
+  padding: 0.75rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.history-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid #f1f3f4;
+}
