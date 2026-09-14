@@ -16,7 +16,7 @@ const AuthChefCentre = () => {
     setMessage({ type: '', text: '' });
 
     // On utilise l'adresse publique ngrok de ton backend FastAPI
-    const baseUrl = 'https://ngrok-free.app';
+    const baseUrl = 'https://loca.lt';
 
     try {
       if (isRegisterMode) {

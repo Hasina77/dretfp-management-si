@@ -20,6 +20,9 @@ const DashboardAdmin = () => {
   const [selectedApprenant, setSelectedApprenant] = useState(null);
   const [modalMode, setModalMode] = useState('');
   const [activeMenu, setActiveMenu] = useState('liste_apprenants');
+
+  const [selectedDemande, setSelectedDemande] = useState(null);
+  const [showTraiteModal, setShowTraiteModal] = useState(false);
   
   // États pour les filtres et la recherche
   const [search, setSearch] = useState('');
@@ -34,11 +37,9 @@ const DashboardAdmin = () => {
   // --- 🗄️ 2. ÉTAT DYNAMIQUE POUR LE REGISTRE DES APPRENANTS (Alimenté par FastAPI) ---
   const [apprenantsRégion, setApprenantsRégion] = useState([]);
 
-  // Table fixe simulée pour les requêtes de demandes entrantes
-  const [demandes] = useState([
-    { id: 1, matricule: 'MAT-2026-004', nom: 'RAKOTO Jean', type: 'ATTESTATION', centre: 'Lycée Technique Fianarantsoa', date: '03/09/2026', statut: 'EN_ATTENTE' },
-    { id: 2, matricule: 'MAT-2026-089', nom: 'RASOA Marie', type: 'DIPLOME', centre: 'CFP Ambalavao', date: '02/09/2026', statut: 'VALIDE' },
-  ]);
+    // 🏢 MODIFICATION DYNAMIQUE : On initialise à vide car les données viendront de FastAPI (SQLite)
+  const [demandes, setDemandes] = useState([]);
+
 
   // Constantes de statistiques pour la charte graphique
   const effectifTotalApprenants = 2500;
@@ -203,48 +204,88 @@ const DashboardAdmin = () => {
     return matchSearch && matchAnnee && matchFiliere && matchCentre;
   });
 
+    // 🚀 VERSION CORRIGÉE ET BLINDÉE CONTRE LES ERREURS UNDEFINED / TOLOWERCASE
   const demandesFiltrees = demandes.filter(item => {
-    const matchSearch = item.nom.toLowerCase().includes(search.toLowerCase()) || item.matricule.includes(search);
-    const matchType = filterType === 'Tous' || item.type === filterType;
-    const matchStatus = filterStatus === 'Tous' || item.statut === filterStatus;
+    // 🔒 1. Extraction sécurisée du Nom (on protège avec une chaîne vide si absent)
+    const nomAchercher = (item.nom_complet || item.nom || "").toLowerCase();
+    
+    // 🔒 2. Extraction sécurisée du Matricule
+    const matriculeAchercher = (item.im_apprenant || item.matricule || "").toString();
+    
+    // 🔍 3. Application du filtre de recherche textuel
+    const matchSearch = nomAchercher.includes(search.toLowerCase()) || matriculeAchercher.includes(search);
+    
+    // 🔒 4. Extraction sécurisée du type de document
+    const typeDocument = item.type_document || item.type || "";
+    const matchType = filterType === 'Tous' || typeDocument === filterType;
+    
+    // 🔒 5. Extraction sécurisée du statut
+    const statutDocument = item.statut || "";
+    const matchStatus = filterStatus === 'Tous' || statutDocument === filterStatus;
+    
     return matchSearch && matchType && matchStatus;
   });
 
-    // 🔥 CODE À AJOUTER : Algorithme de copie et de notification
-  const transfererVersDemandes = (apprenant, typeDoc) => {
-    
-    // 1. Vérification : Est-ce que ce matricule a déjà fait une demande pour ce TYPE de document ?
-    const demandeExisteDeja = demandes.some(
-      (demande) => 
-        demande.matricule === apprenant.im_apprenant.toString() && 
-        demande.type === typeDoc
-    );
 
-    // 2. Si la démarche existe déjà, on bloque immédiatement le flux
+    // 🔥 CODE À AJOUTER : Algorithme de copie et de notification
+    // 🚀 ALGORITHME DE TRANSFERT CORRIGÉ ET SÉCURISÉ CONTRE LES ERREURS TOLOWERCASE
+  const transfererVersDemandes = async (apprenant, typeDoc) => {
+    
+    // 1️⃣ VÉRIFICATION RATIONNELLE : Contrôle des doublons avec protection optionnelle ?.
+    const demandeExisteDeja = demandes.some((demande) => {
+      // Extraction sécurisée des matricules (on gère im_apprenant ou matricule)
+      const demMatricule = (demande.im_apprenant || demande.matricule || "").toString();
+      const appMatricule = (apprenant.im_apprenant || "").toString();
+      
+      // Extraction sécurisée du type de document (on protège le toLowerCase avec ?. et une valeur par défaut)
+      const demType = (demande.type_document || demande.type || "").toLowerCase();
+      const appType = (typeDoc || "").toLowerCase();
+      
+      return demMatricule === appMatricule && demType === appType;
+    });
+
+    // 2️⃣ Si la démarche existe déjà, on bloque immédiatement le flux
     if (demandeExisteDeja) {
       alert(`⚠️ Action Interdite : Cet apprenant a déjà soumis une demande de ${typeDoc.toLowerCase()} !`);
-      return; // Stop l'exécution de la fonction
+      return; // Stoppe l'exécution de la fonction
     }
 
-    // 3. Si aucune demande n'existe, on procède à la copie normale
-    const nouvelleDemande = {
-      id: Date.now(),
-      matricule: apprenant.im_apprenant.toString(),
-      nom: `${apprenant.nom_apprenant} ${apprenant.prenom_apprenant}`,
-      type: typeDoc, 
-      centre: apprenant.etablissement_id,
-      date: new Date().toLocaleDateString('fr-FR'),
-      statut: 'EN_ATTENTE'
-    };
+    // 3️⃣ Envoi réseau vers l'API FastAPI et sauvegarde SQLite
+    try {
+      const response = await API.post('/demandes/creer', {
+        im_apprenant: parseInt(apprenant.im_apprenant), 
+        nom_complet: `${apprenant.nom_apprenant} ${apprenant.prenom_apprenant || ''}`.trim(),
+        type_document: typeDoc, // 'ATTESTATION' ou 'DIPLOME'
+        centre_examen: apprenant.etablissement_id || "Centre Non Spécifié"
+      });
 
-    // Pousse la copie dans le tableau
-    demandes.unshift(nouvelleDemande); 
+      // 4️⃣ Synchronisation visuelle de l'interface en direct
+      if (response.data && response.data.data) {
+        setDemandes(prevDemandes => [response.data.data, ...prevDemandes]);
+      } else {
+        const nouvelleDemandeSecours = {
+          id_demande: Date.now(),
+          im_apprenant: apprenant.im_apprenant,
+          nom_complet: `${apprenant.nom_apprenant} ${apprenant.prenom_apprenant || ''}`.trim(),
+          type_document: typeDoc, 
+          centre_examen: apprenant.etablissement_id,
+          date_depot: new Date().toLocaleDateString('fr-FR'),
+          statut: 'EN_ATTENTE'
+        };
+        setDemandes(prevDemandes => [nouvelleDemandeSecours, ...prevDemandes]);
+      }
 
-    // Allume la notification (+1)
-    setNotifCount(prev => prev + 1);
+      // Incrémentation sécurisée des notifications
+      setNotifCount(prev => prev + 1);
 
-    alert(`✅ Succès : La demande ${typeDoc.toLowerCase()} de ${apprenant.nom_apprenant} est réussie .`);
+      alert(`✅ Succès : La demande de ${typeDoc.toLowerCase()} pour ${apprenant.nom_apprenant} a été enregistrée en base SQL au statut "En attente".`);
+      
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.detail || "⚠️ Erreur lors du transfert des renseignements au serveur central.");
+    }
   };
+
 
   const [showAddEtablissement, setShowAddEtablissement] = useState(false);
   const [openEtabMenuId, setOpenEtabMenuId] = useState(null); // Pour suivre les 3 points de la table établissements
@@ -275,8 +316,34 @@ const DashboardAdmin = () => {
     if (activeMenu === 'liste_etablissements') {
       chargerEtablissements();
     }
+    if (activeMenu === 'liste_demandes') {
+      chargerDemandes(); // 🚀 CORRECTION : Cette fonction est maintenant correctement déclarée !
+    }
   }, [activeMenu]);
 
+
+    // 🚀 ALGORITHME DE TRANSFERT DYNAMIQUE VERS LE REGISTRE DES DEMANDES
+  const handleCreerDemandeTitre = async (apprenant, typeDoc) => {
+    try {
+      // 📡 Envoi des coordonnées exactes requises par le modèle DemandeCreate de ton API
+      await API.post('/demandes/creer', {
+        im_apprenant: apprenant.im_apprenant,
+        nom_complet: `${apprenant.nom_apprenant} ${apprenant.prenom_apprenant}`,
+        type_document: typeDoc, // 'ATTESTATION' ou 'DIPLOME'
+        centre_examen: apprenant.etablissement_id || "Centre Non Spécifié"
+      });
+
+      alert(`📄 La demande de ${typeDoc} pour ${apprenant.nom_apprenant} a été transmise avec succès au registre des demandes !`);
+      
+      // Si l'administrateur est sur l'onglet des demandes, on rafraîchit la liste
+      if (activeMenu === 'liste_demandes') {
+        await chargerDemandes();
+      }
+    } catch (err) {
+      console.error(err);
+      alert(err.response?.data?.detail || "⚠️ Erreur lors du transfert des renseignements au serveur central.");
+    }
+  };
 
 
     // 🔥 CODE À AJOUTER : Algorithme d'insertion de l'établissement
@@ -358,8 +425,29 @@ const DashboardAdmin = () => {
 
   const [selectedEtabIds, setSelectedEtabIds] = useState([]);
 
-
-
+  const handleValiderLeDocument = async () => {
+    try {
+      // 📡 Appel de la route PUT de mise à jour avec l'ID de la demande
+      await API.put(`/demandes/valider/${selectedDemande.id_demande}`);
+      
+      alert(`✅ Le document (${selectedDemande.type_document}) de ${selectedDemande.nom_complet} est validé !`);
+      
+      await chargerDemandes(); // Recharge le tableau instantanément depuis la base SQLite
+      setShowTraiteModal(false);
+      setSelectedDemande(null);
+    } catch (err) {
+      alert("Erreur lors du traitement de la demande sur le serveur central.");
+    }
+  };
+const chargerDemandes = async () => {
+    try {
+      const response = await API.get('/demandes/liste');
+      setDemandes(response.data); // Injecte le tableau JSON provenant de FastAPI
+    } catch (err) {
+      console.error("Erreur lors de la récupération des demandes de titres");
+    }
+  };
+  
 
 
 
@@ -527,39 +615,16 @@ const DashboardAdmin = () => {
             </div>
           )}
 
-          {/* 🔲 CAS 3 : LISTE DES DEMANDES (ONGLET FILTRE DES DEMANDES ENTRANTS) */}
+                    {/* CAS 3 : MODULE DE TRAITEMENT ET ÉVALUATION DES DEMANDES DE TITRES DYNAMIQUE */}
+                    {/* CAS 3 : MODULE DE TRAITEMENT ET ÉVALUATION DES DEMANDES DE TITRES FILTRÉES */}
           {activeMenu === 'liste_demandes' && (
             <div>
-              <div className="section-title">Évaluation en temps réel des demandes de titres</div>
-              
-              <div className="filter-bar">
-                <input 
-                  type="text" 
-                  placeholder="Rechercher..." 
-                  className="search-input" 
-                  value={search} 
-                  onChange={(e) => setSearch(e.target.value)} 
-                />
-                
-                <select className="filter-select" value={filterType} onChange={(e) => setFilterType(e.target.value)}>
-                  <option value="Tous">Type: Tous</option>
-                  <option value="ATTESTATION">Attestations</option>
-                  <option value="DIPLOME">Diplômes</option>
-                </select>
-
-                <select className="filter-select" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-                  <option value="Tous">Statut: Tous</option>
-                  <option value="EN_ATTENTE">En attente</option>
-                  <option value="VALIDE">Validé</option>
-                </select>
-              </div>
-
-              {/* Tableau structuré et propre pour afficher la table demandes_diplomes */}
+              <div className="section-title">Évaluation en temps réel des demandes de titres</div>             
               <div className="data-table-container">
                 <table className="data-table">
                   <thead>
                     <tr>
-                      <th>Matricule</th>
+                      <th>Matrice</th>
                       <th>Nom</th>
                       <th>Document</th>
                       <th>Centre</th>
@@ -569,28 +634,56 @@ const DashboardAdmin = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {demandesFiltrees.map((item) => (
-                      <tr key={item.id}>
-                        <td><strong>{item.matricule}</strong></td>
-                        <td>{item.nom}</td>
-                        <td>{item.type}</td>
-                        <td>{item.centre}</td>
-                        <td>{item.date}</td>
-                        <td>
-                          <span className={`status-badge ${item.statut.toLowerCase()}`}>
-                            {item.statut === 'EN_ATTENTE' ? 'En attente' : 'Validé'}
-                          </span>
-                        </td>
-                        <td>
-                          <button className="btn-table-action">Traiter</button>
-                        </td>
-                      </tr>
-                    ))}
+                    {/* 🚀 CORRECTION : Utilisation de demandesFiltrees à la place de demandes */}
+                    {demandesFiltrees.length === 0 ? (
+                      <tr><td colSpan="7" className="no-entries">Aucune demande de titre ne correspond aux critères.</td></tr>
+                    ) : (
+                      demandesFiltrees.map((dem, index) => {
+                        // 🔒 Extraction sécurisée avec valeur de secours pour éviter les plantages
+                        const matriculeAffiche = dem.im_apprenant || dem.matricule || "N/A";
+                        const nomAffiche = dem.nom_complet || dem.nom || "Candidat Anonyme";
+                        const docAffiche = dem.type_document || dem.type || "NON SPÉCIFIÉ";
+                        const centreAffiche = dem.centre_examen || dem.centre || "Bureau Central";
+                        const dateAffiche = dem.date_depot || dem.date_demande || dem.date || "En cours";
+                        const statutAffiche = dem.statut || "EN_ATTENTE";
+
+                        return (
+                          // Utilisation d'une clé d'index unique combinée pour garantir la stabilité de React
+                          <tr key={dem.id_demande || dem.id || index}>
+                            <td><strong>{matriculeAffiche}</strong></td>
+                            <td>{nomAffiche}</td>
+                            <td><span style={{ fontWeight: 600, color: '#002f6c' }}>{docAffiche}</span></td>
+                            <td>{centreAffiche}</td>
+                            <td>{dateAffiche}</td>
+                            <td>
+                              <span className={`status-badge ${statutAffiche === 'VALIDE' ? 'valide' : 'en-attente'}`} style={{
+                                padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 600,
+                                backgroundColor: statutAffiche === 'VALIDE' ? '#e6f4ea' : '#fef7e0',
+                                color: statutAffiche === 'VALIDE' ? '#137333' : '#b06000'
+                              }}>
+                                {statutAffiche === 'VALIDE' ? 'Validé' : 'En attente'}
+                              </span>
+                            </td>
+                            <td>
+                              <button 
+                                className="btn-table-action"
+                                style={{ padding: '4px 12px', cursor: 'pointer' }}
+                                onClick={() => { setSelectedDemande(dem); setShowTraiteModal(true); }}
+                              >
+                                Traître
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
             </div>
           )}
+
+
 
           {/* CAS 4 : VUE DE FLUX TEMPORAIRE */}
           {activeMenu === 'demandes_entrants' && (
@@ -692,12 +785,29 @@ const DashboardAdmin = () => {
                                   <div className={`dropdown-action-menu ${index === etablissements.length - 1 ? 'open-upward' : ''}`}>
                                     <button className="dropdown-action-item" onClick={() => { setSelectedEtablissement(centre); setShowDetailsEtablissement(true); setOpenEtabMenuId(null); }}>👁️ Details</button>
                                     <button className="dropdown-action-item" onClick={() => { setSelectedEtablissement(centre); setContactEtab(centre.contact.replace('+261 ', '').replace(/\s+/g, '')); setShowEditEtablissement(true); setOpenEtabMenuId(null); }}>✏️ Modificateur</button>
-                                    <button className="dropdown-action-item btn-item-delete" onClick={() => { 
-                                      if(window.confirm(`Voulez-vous supprimer l'établissement ${centre.nom_etablissement} ?`)) {
-                                        setEtablissements(etablissements.filter(e => e.id_centre !== centre.id_centre));
+                                                                      {/* 🗑️ BOUTON SUPPRIMER CONNECTÉ À L'API FASTAPI */}
+                                  <button 
+                                    className="dropdown-action-item btn-item-delete" 
+                                    onClick={async () => { 
+                                      if(window.confirm(`⚠️ ATTENTION : Voulez-vous supprimer définitivement l'établissement "${centre.nom_etablissement}" du répertoire officiel ?`)) {
+                                        try {
+                                          // Envoi de la requête de suppression au serveur FastAPI
+                                          await API.delete(`/etablissements/supprimer/${centre.id_centre}`);
+                                          
+                                          alert(`🗑️ L'établissement "${centre.nom_etablissement}" a été supprimé avec succès de la base SQL !`);
+                                          
+                                          // Force le rafraîchissement instantané du tableau à l'écran
+                                          await chargerEtablissements(); 
+                                        } catch (err) {
+                                          alert(err.response?.data?.detail || "Erreur lors de la suppression sur le serveur central.");
+                                        }
                                       }
-                                      setOpenEtabMenuId(null); 
-                                    }}>🗑️ Supprimer</button>
+                                      setOpenEtabMenuId(null); // Ferme le menu à 3 points
+                                    }}
+                                  >
+                                    🗑️ Supprimer
+                                  </button>
+
                                   </div>
                                 )}
                               </div>
@@ -713,32 +823,29 @@ const DashboardAdmin = () => {
               {/* 🔴 CODES À AJOUTER : LES DEUX BOUTONS DANS LES CADRES ROUGES EN BAS */}
               <div style={{ display: 'flex', gap: '15px', marginTop: '1.5rem', alignItems: 'center' }}>
                 
-                {/* Bouton WhatsApp */}
+                               {/* 💬 BOUTON WHATSAPP AVEC URL PERSONNALISÉE FIXE */}
                 <button
                   className="btn-action-top"
-                  style={{ 
-                    backgroundColor: '#25D366', // Couleur officielle WhatsApp
-                    color: 'white',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    opacity: selectedEtabIds.length > 0 ? 1 : 0.5,
-                    cursor: selectedEtabIds.length > 0 ? 'pointer' : 'not-allowed'
-                  }}
+                  style={{ backgroundColor: '#25D366', color: 'white' }}
                   disabled={selectedEtabIds.length === 0}
-                  onClick={() => {
-                    // Récupère les contacts des centres cochés
+                   onClick={() => {
                     const centresCoches = etablissements.filter(e => selectedEtabIds.includes(e.id_centre));
+                    
                     centresCoches.forEach(centre => {
-                      const numNettoye = centre.contact.replace(/\s+/g, '').replace('+', '');
-                      const message = encodeURIComponent(`Bonjour, voici le lien de saisie sécurisé DRETFP pour votre centre d'examen : https://ngrok-free.app`);
-                      // Ouvre l'API WhatsApp Web/Mobile internationale
-                      window.open(`https://wa.me{numNettoye}?text=${message}`, '_blank');
+                      const numNettoye = centre.contact.replace(/\s+/g, '').replace('+', '').replace('(', '').replace(')', '').replace(/-/g, '');
+                      
+                      // 📝 Texte officiel contenant le sous-domaine fixé
+                      const texteBrut = "Bonjour Monsieur le Chef de Centre,\n\nVoici votre lien d'accès sécurisé à distance pour enregistrer les notes :\nhttps://loca.lt\n\n⚠️ *CONSIGNE IMPORTANT AU PREMIER CLIC :*\nUne page bleue de sécurité va s'ouvrir. Descendez un peu, collez le code de sécurité suivant dans la case 'Endpoint IP' : [153.67.85.106] et cliquez sur 'Click to Continue' pour afficher votre formulaire.";
+                      
+                      const messageCode = encodeURIComponent(texteBrut);
+                      window.open("https://wa.me/" + numNettoye + "?text=" + messageCode, "_blank");
                     });
                   }}
                 >
                   💬 Envoyer le lien sur WhatsApp ({selectedEtabIds.length})
                 </button>
+
+
 
                 {/* Bouton E-mail */}
                 <button
@@ -757,7 +864,7 @@ const DashboardAdmin = () => {
                     const centresCoches = etablissements.filter(e => selectedEtabIds.includes(e.id_centre));
                     const listeEmails = centresCoches.map(e => e.email).join(',');
                     const sujet = encodeURIComponent("DRETFP Fianarantsoa — Portail de saisie des fiches d'examen");
-                    const corps = encodeURIComponent("Bonjour Monsieur le Chef de Centre,\n\nVeuillez initialiser votre accès et téléverser votre lot de candidats admis via notre portail sécurisé accessible à distance :\nhttps://ngrok-free.app\n\nCordialement, Le Responsable de la Direction Régionale.");
+                    const message = encodeURIComponent(`Bonjour, voici le lien de saisie sécurisé DRETFP pour votre centre d'examen : https://loca.lt , Le Responsable de la Direction Régionale.`);
                     
                     // Déclenche le gestionnaire d'e-mails par défaut (Outlook, Gmail, etc.)
                     window.open(`mailto:${listeEmails}?subject=${sujet}&body=${corps}`, '_blank');
@@ -1071,6 +1178,38 @@ const DashboardAdmin = () => {
           </div>
         </div>
       )}
+
+      {/* 🔲 MODALE DE PRISE DE DÉCISION POUR LE TRAITEMENT DES TITRES */}
+      {showTraiteModal && selectedDemande && (
+        <div className="modal-overlay" onClick={() => { setShowTraiteModal(false); setSelectedDemande(null); }}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+            <div className="modal-header" style={{ backgroundColor: '#002f6c' }}>
+              <h2>⚖️ Traitement de la Demande</h2>
+              <button className="btn-close-modal" onClick={() => { setShowTraiteModal(false); setSelectedDemande(null); }}>&times;</button>
+            </div>
+            <div className="modal-body" style={{ padding: '1.5rem', textAlign: 'center' }}>
+              <p style={{ fontSize: '1rem', margin: 0 }}>
+                Voulez-vous valider officiellement l'impression du document suivant ?
+              </p>
+              <div style={{ background: '#f8f9fa', padding: '1rem', borderRadius: '6px', marginTop: '1rem', textAlign: 'left', border: '1px dashed #dadce0' }}>
+                📌 <strong>Candidat :</strong> {selectedDemande.nom_complet}<br/>
+                🆔 <strong>Matricule :</strong> {selectedDemande.im_apprenant}<br/>
+                🎓 <strong>Titre demandé :</strong> {selectedDemande.type_document}<br/>
+                🏢 <strong>Établissement :</strong> {selectedDemande.centre_examen}
+              </div>
+            </div>
+            <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+              <button className="btn-table-action" onClick={() => { setShowTraiteModal(false); setSelectedDemande(null); }}>
+                Annuler
+              </button>
+              <button className="btn-action-top" style={{ backgroundColor: '#137333' }} onClick={handleValiderLeDocument}>
+                ✔️ Valider et Signer le Titre
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
     </div>
   );

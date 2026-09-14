@@ -4,7 +4,7 @@ import Login from './pages/auth/Login';
 import DemandeClient from './pages/demandes/DemandeClient'; // 📜 Importation du vrai module officiel
 import DashboardAdmin from './pages/demandes/DashboardAdmin';
 import SaisieNotes from './pages/examens/SaisieNotes';
-import SaisieCentrePublic from './pages/examens/SaisieCentrePublic';
+import SaisieCentreTerrain from './pages/examens/SaisieCentreTerrain';
 import AuthChefCentre from './pages/examens/AuthChefCentre';
 
 
@@ -21,7 +21,7 @@ function App() {
 
         <Route path="/login" element={<Login />} />
 
-        <Route path="/saisie-centre-public" element={<SaisieCentrePublic />} />
+        <Route path="/fiche-pv-examen" element={<SaisieCentreTerrain />} />
 
         <Route path="/dashboard" element={<DashboardAdmin />} />
 

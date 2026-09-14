@@ -1,7 +1,11 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: 'http://localhost:8000/api', // Adresse de ton serveur FastAPI
+  // 🔗 Magique : plus d'adresse en double ! Le navigateur reste sur le même domaine.
+  baseURL: '/api', 
+  headers: {
+    'Content-Type': 'application/json'
+  }
 });
 
 // Intercepteur pour injecter automatiquement le Token JWT stocké lors du Login

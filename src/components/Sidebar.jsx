@@ -33,13 +33,6 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount }) => {
         >
           Liste des apprenants
         </li>
-        
-        <li 
-          className={`sidebar-item ${activeMenu === 'liste_demandes' ? 'active' : ''}`} 
-          onClick={() => setActiveMenu('liste_demandes')}
-        >
-          Liste des Demandes
-        </li>
 
         <li 
           className={`sidebar-item ${activeMenu === 'demandes_entrants' || activeMenu === 'liste_demandes' ? 'active' : ''}`} 
@@ -49,7 +42,7 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount }) => {
           }}
           style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
         >
-          <span>Demandes entrants</span>
+          <span>Liste des Demandes</span>
           
           {/* Badge rouge chiffré dynamique */}
           {notifCount > 0 && (
@@ -64,6 +57,13 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount }) => {
               {notifCount}
             </span>
           )}
+        </li>
+
+        <li 
+          className={`sidebar-item ${activeMenu === '' ? 'active' : ''}`} 
+          onClick={() => setActiveMenu('')}
+        >
+          Stock par Etablissement
         </li>
         
         <li 
