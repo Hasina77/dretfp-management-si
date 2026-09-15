@@ -41,6 +41,7 @@ const DashboardAdmin = () => {
   const [demandes, setDemandes] = useState([]);
 
 
+
   // Constantes de statistiques pour la charte graphique
   const effectifTotalApprenants = 2500;
   const effectifDiplomesRégion = 1800;
@@ -205,27 +206,33 @@ const DashboardAdmin = () => {
   });
 
     // 🚀 VERSION CORRIGÉE ET BLINDÉE CONTRE LES ERREURS UNDEFINED / TOLOWERCASE
-  const demandesFiltrees = demandes.filter(item => {
-    // 🔒 1. Extraction sécurisée du Nom (on protège avec une chaîne vide si absent)
-    const nomAchercher = (item.nom_complet || item.nom || "").toLowerCase();
+   // 🚀 ALGORITHME DE FILTRAGE BLINDÉ CONTRE L'ÉCRAN BLANC
+  const demandesFiltrees = (demandes || []).filter(item => {
+    if (!item) return false;
+
+    // 🔒 1. Extraction sécurisée du Nom
+    const nomAchercher = (item.nom_complet || item.nom || "").toString().toLowerCase();
     
     // 🔒 2. Extraction sécurisée du Matricule
     const matriculeAchercher = (item.im_apprenant || item.matricule || "").toString();
     
     // 🔍 3. Application du filtre de recherche textuel
-    const matchSearch = nomAchercher.includes(search.toLowerCase()) || matriculeAchercher.includes(search);
+    const matchSearch = nomAchercher.includes((search || "").toLowerCase()) || matriculeAchercher.includes(search || "");
     
-    // 🔒 4. Extraction sécurisée du type de document
-    const typeDocument = item.type_document || item.type || "";
-    const matchType = filterType === 'Tous' || typeDocument === filterType;
+    // 🔒 4. Extraction et comparaison sécurisée du type de document (Sidebar filter-select)
+    const typeDocument = (item.type_document || item.type || "").toString().toUpperCase();
+    const appFilterType = (filterType || "Tous").toString().toUpperCase();
+    const matchType = appFilterType === 'TOUS' || typeDocument === appFilterType;
     
-    // 🔒 5. Extraction sécurisée du statut
-    const statutDocument = item.statut || "";
-    const matchStatus = filterStatus === 'Tous' || statutDocument === filterStatus;
+    // 🔒 5. Extraction et comparaison sécurisée du statut
+    const statutDocument = (item.statut || "").toString().toUpperCase();
+    const appFilterStatus = (filterStatus || "Tous").toString().toUpperCase();
+    const matchStatus = appFilterStatus === 'TOUS' || statutDocument === appFilterStatus;
     
     return matchSearch && matchType && matchStatus;
   });
 
+  const [documentSelectionne, setDocumentSelectionne] = useState('ATTESTATION'); // Choix par défaut
 
     // 🔥 CODE À AJOUTER : Algorithme de copie et de notification
     // 🚀 ALGORITHME DE TRANSFERT CORRIGÉ ET SÉCURISÉ CONTRE LES ERREURS TOLOWERCASE
@@ -345,6 +352,32 @@ const DashboardAdmin = () => {
     }
   };
 
+    // 1️⃣ Au clic sur "Traître" dans la Liste des Demandes (Passe de EN_ATTENTE à EN_COURS)
+  const handleEnvoyerAuTraitement = async () => {
+    try {
+      await API.put(`/demandes/envoyer-au-traitement/${selectedDemande.id_demande}`);
+      alert(`✈️ Dossier transféré avec succès dans la "Liste des Traitements" (${selectedDemande.type_document.toLowerCase()}) !`);
+      await chargerDemandes(); // Rafraîchit le tableau SQLite
+      setShowTraiteModal(false);
+      setSelectedDemande(null);
+    } catch (err) {
+      alert("Erreur lors du transfert du dossier au traitement.");
+    }
+  };
+
+  // 2️⃣ Au clic sur "Signer" dans les sous-onglets de Traitement (Passe de EN_COURS à VALIDE)
+  const handleSignerDocumentDefinitif = async (idDemande) => {
+    if (window.confirm("✒️ Confirmez-vous l'apposition de la signature officielle sur ce titre ?")) {
+      try {
+        await API.put(`/demandes/finaliser-signature/${idDemande}`);
+        alert("✅ Le document a été signé avec succès et archivé comme validé !");
+        await chargerDemandes(); // Synchronisation instantanée
+      } catch (err) {
+        alert("Erreur lors de la signature finale sur le serveur.");
+      }
+    }
+  };
+
 
     // 🔥 CODE À AJOUTER : Algorithme d'insertion de l'établissement
     const handleEnregistrerEtablissement = async (e) => {
@@ -425,20 +458,7 @@ const DashboardAdmin = () => {
 
   const [selectedEtabIds, setSelectedEtabIds] = useState([]);
 
-  const handleValiderLeDocument = async () => {
-    try {
-      // 📡 Appel de la route PUT de mise à jour avec l'ID de la demande
-      await API.put(`/demandes/valider/${selectedDemande.id_demande}`);
-      
-      alert(`✅ Le document (${selectedDemande.type_document}) de ${selectedDemande.nom_complet} est validé !`);
-      
-      await chargerDemandes(); // Recharge le tableau instantanément depuis la base SQLite
-      setShowTraiteModal(false);
-      setSelectedDemande(null);
-    } catch (err) {
-      alert("Erreur lors du traitement de la demande sur le serveur central.");
-    }
-  };
+  
 const chargerDemandes = async () => {
     try {
       const response = await API.get('/demandes/liste');
@@ -447,13 +467,114 @@ const chargerDemandes = async () => {
       console.error("Erreur lors de la récupération des demandes de titres");
     }
   };
+ 
+     const ImprimerEtValiderAttestation = async (demande) => {
+    try {
+      const nomComplet = demande.nom_complet || "RAKOTO Jean";
+      const matricule = demande.im_apprenant || demande.matricule || "72E-001-CEC";
+      const centre = demande.centre_examen || "Lycée Technique Fianarantsoa";
+      const dateDepot = demande.date_depot || new Date().toLocaleDateString('fr-FR');
+      
+      const printContainer = document.createElement('div');
+      printContainer.id = 'official-attestation-print-zone';
+      printContainer.innerHTML = `
+        <div class="attestation-document-box">
+          <div class="rep-header">
+            <strong>REPOBLIKAN'I MADAGASIKARA</strong><br/>
+            <span class="motto">Fitiavana – Tanindrazana – Fandrosoana</span><br/>
+            <span>*********</span>
+          </div>
+          
+          <div class="ministry-header">
+            <strong>MINISTERE DE L'ENSEIGNEMENT TECHNIQUE<br/>ET DE LA FORMATION PROFESSIONNELLE</strong><br/>
+            <span>********************</span><br/>
+            <strong>SECRETARIAT GENERAL</strong><br/>
+            <span>********************</span><br/>
+            <strong>DIRECTION REGIONALE DE L'ENSEIGNEMENT TECHNIQUE ET DE LA FORMATION PROFESSIONNELLE<br/>AMORON'I MANIA</strong><br/>
+            <span>********************</span>
+          </div>
+
+          <div class="doc-number">N° D'INSCRIPTION : ${matricule}</div>
+          
+          <div class="doc-title">ATTESTATION DE REUSSITE</div>
+
+            <div class="doc-body">
+            <p class="intro-text">LE DIRECTEUR REGIONAL DE L'ENSEIGNEMENT TECHNIQUE ET DE LA FORMATION PROFESSIONNELLE, atteste que :</p>
+            
   
+            <div class="info-avy">
+               Mr / Mlle : ${nomComplet} 
+            </div>
+            
+            <div class="info-avy">
+              Né(e) le : 23 Mai 2002 à Ambositra
+            </div>
+            
+            <div class="info-avy">
+              A subi avec succès l'Examen du : BREVET D'ETUDES PROFESSIONNELLES (B.E.P) 
+            </div>
+            
+            <div class="info-avy">
+              Centre : ${centre} 
+            </div>
+            
+            <div class="info-avy">
+              Secteur : GENIE CIVIL 
+            </div>
+            
+            <div class="info-avy">
+              Filière/Métier : BATIMENT ET TRAVAUX PUBLICS / CHEF D'EQUIPE DE CHANTIER 
+            </div>
+            
+            <div class="info-avy">
+              Session du : 2021 
+            </div>
+            
+            <div class="info-avy">
+              Mention : PASSABLE 
+            </div>
+          </div>
+
+
+          <div class="footer-container">
+            <div class="warning-box">
+              <strong style="display:block; text-align:center; text-decoration:underline; margin-bottom:4px;">AVIS IMPORTANT</strong>
+              Il ne peut être délivré qu'une seule attestation de réussite.<br/>
+              L'intéressé(e) doit en faire autant de copie lui sont<br/>
+              nécessaires et les certifier conforme à l'original.
+            </div>
+            
+            <div class="signature-box">
+              Fait à Ambositra, le ${dateDepot}<br/>
+              <strong style="display:block; margin-top:5px; font-size:10px; line-height:1.2;">
+                P. LE DIRECTEUR REGIONAL DE L'ENSEIGNEMENT TECHNIQUE DE LA<br/>FORMATION PROFESSIONNELLE
+              </strong>
+              <span class="delegate">Par délégation</span>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(printContainer);
+      window.print();
+      document.body.removeChild(printContainer);
+
+      await API.put(`/demandes/finaliser-signature/${demande.id_demande}`);
+      alert("🖨️ Document aligné sur une seule page et validé dans la base SQLite !");
+      await chargerDemandes();
+      
+    } catch (err) {
+      alert("Erreur lors de la génération de l'impression.");
+    }
+  };
+
+
 
 
 
   return (
     <div className="dashboard-container">
-        <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} notifCount={notifCount} setNotifCount={setNotifCount} />
+        <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} notifCount={notifCount} setNotifCount={setNotifCount} filterType={filterType} setFilterType={setFilterType} demandes={demandes} />
 
       <div className="main-content">
         <div className="header-bar">
@@ -615,67 +736,104 @@ const chargerDemandes = async () => {
             </div>
           )}
 
-                    {/* CAS 3 : MODULE DE TRAITEMENT ET ÉVALUATION DES DEMANDES DE TITRES DYNAMIQUE */}
-                    {/* CAS 3 : MODULE DE TRAITEMENT ET ÉVALUATION DES DEMANDES DE TITRES FILTRÉES */}
+          
+          
           {activeMenu === 'liste_demandes' && (
             <div>
-              <div className="section-title">Évaluation en temps réel des demandes de titres</div>             
+              <div className="section-title">Évaluation en temps réel des demandes entrantes</div>             
               <div className="data-table-container">
                 <table className="data-table">
                   <thead>
-                    <tr>
-                      <th>Matrice</th>
-                      <th>Nom</th>
-                      <th>Document</th>
-                      <th>Centre</th>
-                      <th>Date</th>
-                      <th>Statut</th>
-                      <th>Action</th>
-                    </tr>
+                    <tr><th>Matrice</th><th>Nom</th><th>Document</th><th>Centre</th><th>Date</th><th>Statut</th><th>Action</th></tr>
                   </thead>
                   <tbody>
-                    {/* 🚀 CORRECTION : Utilisation de demandesFiltrees à la place de demandes */}
-                    {demandesFiltrees.length === 0 ? (
-                      <tr><td colSpan="7" className="no-entries">Aucune demande de titre ne correspond aux critères.</td></tr>
+                    {demandes.filter(d => (d.statut || "").toUpperCase() === 'EN_ATTENTE').length === 0 ? (
+                      <tr><td colSpan="7" className="no-entries">Aucune nouvelle demande en attente.</td></tr>
                     ) : (
-                      demandesFiltrees.map((dem, index) => {
-                        // 🔒 Extraction sécurisée avec valeur de secours pour éviter les plantages
-                        const matriculeAffiche = dem.im_apprenant || dem.matricule || "N/A";
-                        const nomAffiche = dem.nom_complet || dem.nom || "Candidat Anonyme";
-                        const docAffiche = dem.type_document || dem.type || "NON SPÉCIFIÉ";
-                        const centreAffiche = dem.centre_examen || dem.centre || "Bureau Central";
-                        const dateAffiche = dem.date_depot || dem.date_demande || dem.date || "En cours";
-                        const statutAffiche = dem.statut || "EN_ATTENTE";
+                      demandes.filter(d => (d.statut || "").toUpperCase() === 'EN_ATTENTE').map((dem, index) => (
+                        <tr key={dem.id_demande || index}>
+                          <td><strong>{dem.im_apprenant}</strong></td>
+                          <td>{dem.nom_complet}</td>
+                          <td><span style={{ fontWeight: 600, color: '#002f6c' }}>{dem.type_document}</span></td>
+                          <td>{dem.centre_examen}</td>
+                          <td>{dem.date_depot}</td>
+                          <td><span className="status-badge en-attente" style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: '#fef7e0', color: '#b06000', fontWeight: 600 }}>En attente</span></td>
+                          <td>
+                            <button className="btn-table-action" style={{ padding: '4px 12px', cursor: 'pointer' }} onClick={() => { setSelectedDemande(dem); setShowTraiteModal(true); }}>
+                              Traître
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
-                        return (
-                          // Utilisation d'une clé d'index unique combinée pour garantir la stabilité de React
-                          <tr key={dem.id_demande || dem.id || index}>
-                            <td><strong>{matriculeAffiche}</strong></td>
-                            <td>{nomAffiche}</td>
-                            <td><span style={{ fontWeight: 600, color: '#002f6c' }}>{docAffiche}</span></td>
-                            <td>{centreAffiche}</td>
-                            <td>{dateAffiche}</td>
-                            <td>
-                              <span className={`status-badge ${statutAffiche === 'VALIDE' ? 'valide' : 'en-attente'}`} style={{
-                                padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 600,
-                                backgroundColor: statutAffiche === 'VALIDE' ? '#e6f4ea' : '#fef7e0',
-                                color: statutAffiche === 'VALIDE' ? '#137333' : '#b06000'
-                              }}>
-                                {statutAffiche === 'VALIDE' ? 'Validé' : 'En attente'}
-                              </span>
-                            </td>
-                            <td>
-                              <button 
-                                className="btn-table-action"
-                                style={{ padding: '4px 12px', cursor: 'pointer' }}
-                                onClick={() => { setSelectedDemande(dem); setShowTraiteModal(true); }}
+          
+          {activeMenu === 'traitement_attestation' && (
+            <div>
+              <div className="section-title">Traitement des Attestations Provisoires de Réussite</div>
+              <div className="data-table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr><th>Matrice</th><th>Nom complet</th><th>Document</th><th>Centre d'Examen</th><th>Date Dépôt</th><th>Statut</th><th>Décision Final</th></tr>
+                  </thead>
+                  <tbody>
+                    {demandes.filter(d => (d.statut || "").toUpperCase() === 'EN_COURS' && (d.type_document || "").toUpperCase() === 'ATTESTATION').length === 0 ? (
+                      <tr><td colSpan="7" className="no-entries">📜 Aucune attestation en cours de traitement.</td></tr>
+                    ) : (
+                      demandes.filter(d => (d.statut || "").toUpperCase() === 'EN_COURS' && (d.type_document || "").toUpperCase() === 'ATTESTATION').map((dem, index) => (
+                        <tr key={dem.id_demande || index}>
+                          <td><strong>{dem.im_apprenant}</strong></td><td>{dem.nom_complet}</td><td>{dem.type_document}</td><td>{dem.centre_examen}</td><td>{dem.date_depot}</td>
+                          <td><span className="status-badge" style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: '#e8f0fe', color: '#1a73e8', fontWeight: 600 }}>En traitement</span></td>
+                          <td><button 
+                                className="btn-action-top" 
+                                style={{ 
+                                  padding: '6px 14px', 
+                                  height: 'auto', 
+                                  backgroundColor: '#002f6c', 
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px'
+                                }} 
+                                onClick={() => ImprimerEtValiderAttestation(dem)}
                               >
-                                Traître
+                                🖨️ Imprimer
                               </button>
-                            </td>
-                          </tr>
-                        );
-                      })
+                           </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+        
+          {activeMenu === 'traitement_diplome' && (
+            <div>
+              <div className="section-title">Homologation et Signature des Diplômes Nationaux</div>
+              <div className="data-table-container">
+                <table className="data-table">
+                  <thead>
+                    <tr><th>Matrice</th><th>Nom complet</th><th>Document</th><th>Centre d'Examen</th><th>Date Dépôt</th><th>Statut</th><th>Décision Final</th></tr>
+                  </thead>
+                  <tbody>
+                    {demandes.filter(d => (d.statut || "").toUpperCase() === 'EN_COURS' && (d.type_document || "").toUpperCase() === 'DIPLOME').length === 0 ? (
+                      <tr><td colSpan="7" className="no-entries">🎓 Aucun diplôme national en cours de traitement.</td></tr>
+                    ) : (
+                      demandes.filter(d => (d.statut || "").toUpperCase() === 'EN_COURS' && (d.type_document || "").toUpperCase() === 'DIPLOME').map((dem, index) => (
+                        <tr key={dem.id_demande || index}>
+                          <td><strong>{dem.im_apprenant}</strong></td><td>{dem.nom_complet}</td><td>{dem.type_document}</td><td>{dem.centre_examen}</td><td>{dem.date_depot}</td>
+                          <td><span className="status-badge" style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: '#e8f0fe', color: '#1a73e8', fontWeight: 600 }}>En traitement</span></td>
+                          <td><button className="btn-action-top" style={{ padding: '6px 14px', height: 'auto', backgroundColor: '#137333', cursor: 'pointer' }} onClick={() => handleSignerDocumentDefinitif(dem.id_demande)}>✒️ Signer</button></td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
@@ -685,15 +843,8 @@ const chargerDemandes = async () => {
 
 
 
-          {/* CAS 4 : VUE DE FLUX TEMPORAIRE */}
-          {activeMenu === 'demandes_entrants' && (
-            <div>
-              <div className="section-title">Filtre des flux entrants</div>
-              <p>Zone de traitement des nouvelles notifications...</p>
-            </div>
-          )}
 
-                                       {/* CAS 5 : MODULE GESTION DES ÉTABLISSEMENTS AVEC CASES À COCHER */}
+          {/* CAS 5 : MODULE GESTION DES ÉTABLISSEMENTS AVEC CASES À COCHER */}
           {activeMenu === 'liste_etablissements' && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
@@ -1179,36 +1330,39 @@ const chargerDemandes = async () => {
         </div>
       )}
 
-      {/* 🔲 MODALE DE PRISE DE DÉCISION POUR LE TRAITEMENT DES TITRES */}
+      {/* ⚖️ FENÊTRE MODALE COMMUNE DE VALIDATION NATIONALE */}
       {showTraiteModal && selectedDemande && (
         <div className="modal-overlay" onClick={() => { setShowTraiteModal(false); setSelectedDemande(null); }}>
-          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '450px' }}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '460px' }}>
             <div className="modal-header" style={{ backgroundColor: '#002f6c' }}>
-              <h2>⚖️ Traitement de la Demande</h2>
+              <h2>⚖️ Signature Officielle du Titre</h2>
               <button className="btn-close-modal" onClick={() => { setShowTraiteModal(false); setSelectedDemande(null); }}>&times;</button>
             </div>
             <div className="modal-body" style={{ padding: '1.5rem', textAlign: 'center' }}>
-              <p style={{ fontSize: '1rem', margin: 0 }}>
-                Voulez-vous valider officiellement l'impression du document suivant ?
+              <p style={{ fontSize: '1rem', margin: '0 0 1rem 0' }}>
+                Voulez-vous valider et accorder la signature régionale pour ce dossier ?
               </p>
-              <div style={{ background: '#f8f9fa', padding: '1rem', borderRadius: '6px', marginTop: '1rem', textAlign: 'left', border: '1px dashed #dadce0' }}>
-                📌 <strong>Candidat :</strong> {selectedDemande.nom_complet}<br/>
+              <div style={{ background: '#f8f9fa', padding: '1rem', borderRadius: '6px', textAlign: 'left', border: '1px dashed #dadce0', fontSize: '0.9rem' }}>
+                👤 <strong>Candidat :</strong> {selectedDemande.nom_complet}<br/>
                 🆔 <strong>Matricule :</strong> {selectedDemande.im_apprenant}<br/>
-                🎓 <strong>Titre demandé :</strong> {selectedDemande.type_document}<br/>
-                🏢 <strong>Établissement :</strong> {selectedDemande.centre_examen}
+                📜 <strong>Document Acté :</strong> {selectedDemande.type_document}<br/>
+                🏢 <strong>Établissement d'examen :</strong> {selectedDemande.centre_examen}
               </div>
             </div>
             <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
-              <button className="btn-table-action" onClick={() => { setShowTraiteModal(false); setSelectedDemande(null); }}>
-                Annuler
-              </button>
-              <button className="btn-action-top" style={{ backgroundColor: '#137333' }} onClick={handleValiderLeDocument}>
-                ✔️ Valider et Signer le Titre
+              <button className="btn-table-action" onClick={() => { setShowTraiteModal(false); setSelectedDemande(null); }}>Annuler</button>
+              <button 
+                className="btn-action-top" 
+                style={{ backgroundColor: '#002f6c' }} 
+                onClick={handleEnvoyerAuTraitement}
+              >
+                Envoyer à la Liste de Traitement
               </button>
             </div>
           </div>
         </div>
       )}
+
 
 
     </div>
