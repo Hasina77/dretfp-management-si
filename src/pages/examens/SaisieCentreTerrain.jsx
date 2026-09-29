@@ -5,7 +5,6 @@ import './SaisieNotes.css';
 const SaisieCentreTerrain = () => {
   const centreAffecte = localStorage.getItem('chef_centre_etablissement') || 'Lycée Technique Fianarantsoa';
   
-  // États du formulaire conformes à la table apprenants du bureau central
   const [immatriculation, setImmatriculation] = useState('');
   const [nom, setNom] = useState('');
   const [prenom, setPrenom] = useState('');
@@ -49,7 +48,6 @@ const SaisieCentreTerrain = () => {
     setStatus({ type: 'info', text: 'Transmission chiffrée vers la DRETFP en cours...' });
 
     try {
-      // 🚀 Requête directe traversant le serveur Localtunnel avec le Header anti-reminder page
       await axios.post('https://loca.lt', 
         { apprenants: listeSaisieCentre },
         { headers: { 'Bypass-Tunnel-Reminder': 'true' } }
@@ -67,14 +65,13 @@ const SaisieCentreTerrain = () => {
     <div className="exam-container" style={{ padding: '1.5rem', justifyContent: 'center' }}>
       <div style={{ width: '100%', maxWidth: '1100px', background: 'white', borderRadius: '8px', padding: '2rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
         
-        {/* En-tête sans Sidebar administrative */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #002f6c', paddingBottom: '1rem', marginBottom: '2rem' }}>
           <div>
             <h1 style={{ color: '#002f6c', margin: 0, fontSize: '1.6rem' }}>Portail Terrain — {centreAffecte}</h1>
             <p style={{ margin: '4px 0 0 0', color: '#666' }}>Saisie sécurisée des Procès-Verbaux d'Examen (PV)</p>
           </div>
           <button className="btn-action-top" style={{ backgroundColor: '#c5221f' }} onClick={() => { localStorage.clear(); window.location.href = '/portail-terrain'; }}>
-            🚪 Quitter la session
+             Quitter la session
           </button>
         </div>
 
@@ -106,7 +103,7 @@ const SaisieCentreTerrain = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '2.5rem 0 1rem 0' }}>
           <h3 style={{ margin: 0 }}>Aperçu du lot courant de session ({listeSaisieCentre.length})</h3>
           <button className="btn-action-top" style={{ backgroundColor: '#137333' }} onClick={transmettreAuBureauCentral} disabled={listeSaisieCentre.length === 0}>
-            🚀 Transmettre directement au Bureau Central
+             Transmettre directement au Bureau Central
           </button>
         </div>
 

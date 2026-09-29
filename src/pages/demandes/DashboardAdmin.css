@@ -8,8 +8,6 @@
   padding: 0;
 }
 
-
-/* Sidebar à gauche (Comme Action1) */
 .sidebar {
   width: 240px;
   background-color: #ffffff;
@@ -40,29 +38,12 @@
   object-fit: contain; 
 }
 
-
 .sidebar-menu {
   list-style: none;
   padding: 0;
   margin: 0;
 }
 
-.sidebar-item {
-  padding: 0.75rem 1rem;
-  color: #495057;
-  cursor: pointer;
-  border-radius: 4px;
-  margin-bottom: 0.25rem;
-  font-weight: 500;
-  transition: all 0.2s ease;
-}
-
-.sidebar-item:hover, .sidebar-item.active {
-  background-color: #e8f0fe;
-  color: #1a73e8;
-}
-
-/* Zone principale au centre */
 .main-content {
   flex: 1;
   display: flex;
@@ -71,7 +52,6 @@
   overflow: hidden;
 }
 
-/* Barre du haut (Header) */
 .header-bar {
   background-color: #ffffff;
   padding: 1rem 2rem;
@@ -98,7 +78,6 @@
   cursor: pointer;
 }
 
-/* Section de traitement des données (Contenu) */
 .content-body {
  flex: 1;
  padding: 2rem;
@@ -116,9 +95,9 @@
 .filter-bar {
   display: flex;
   align-items: center;
-  gap: 12px;           /* Espace parfait de 12px entre chaque cadre de sélection */
+  gap: 12px;          
   margin-bottom: 1.5rem;
-  flex-wrap: wrap;     /* Permet un affichage propre si l'écran est petit */
+  flex-wrap: wrap;     
 }
 
 .filter-select {
@@ -129,9 +108,8 @@
   color: #3c4043;
   font-size: 0.9rem;
   cursor: pointer;
-  min-width: 140px;    /* Donne une taille minimale harmonieuse aux menus */
+  min-width: 140px;  
 }
-
 
 .search-input {
   padding: 0.5rem 1rem;
@@ -140,8 +118,6 @@
   width: 220px;
   font-size: 0.9rem;
 }
-
-
 
 .btn-remediate {
   background-color: #e8eaed;
@@ -159,13 +135,10 @@
   cursor: pointer;
 }
 
-
-
 .data-table-container {
   background-color: white;
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  /* 🔓 On autorise les menus déroulants à dépasser du tableau sans être coupés */
   overflow: visible !important; 
 }
 
@@ -222,7 +195,6 @@
   font-size: 0.9rem;
 }
 
-/* Layout Global du Dashboard */
 .dashboard-layout-main {
   display: flex;
   flex: 1;
@@ -231,7 +203,6 @@
   background-color: var(--bg-color);
 }
 
-/* Zone des Graphiques (Gauche & Centre) */
 .charts-grid-left {
   flex: 3;
   display: flex;
@@ -261,7 +232,6 @@
   min-height: 260px;
 }
 
-/* Sidebar des Indicateurs (Cadre Vert - Droite) */
 .indicators-sidebar-right {
   flex: 1;
   display: flex;
@@ -280,7 +250,6 @@
   box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-/* Couleurs thématiques adaptées à ton logo */
 .tile-blue { background-color: #002f6c; }
 .tile-green { background-color: #137333; }
 .tile-orange { background-color: #b06000; }
@@ -300,13 +269,11 @@
   letter-spacing: 0.5px;
 }
 
-/* Conteneur principal de la cellule d'action */
 .dropdown-action-container {
-  position: relative; /* Indispensable pour positionner le menu par rapport au bouton */
+  position: relative; 
   display: inline-block;
 }
 
-/* Le bouton des 3 points horizontaux/verticaux */
 .btn-three-dots {
   background: none;
   border: none;
@@ -329,21 +296,19 @@
   color: #000000;
 }
 
-/* 🔒 LA BOITE FLOTTANTE D'OPTIONS */
 .dropdown-action-menu {
   position: absolute;
-  right: 0;           /* Aligne la boîte sur le bord droit du bouton */
-  top: 100%;          /* S'affiche juste en dessous du bouton */
+  right: 0;          
+  top: 100%;          
   background-color: #ffffff;
-  min-width: 180px;   /* Largeur confortable pour lire les textes */
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); /* Ombre portée professionnelle */
+  min-width: 180px;   
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); 
   border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 0.5rem 0;
-  z-index: 999;       /* Reste par-dessus les lignes du tableau */
+  z-index: 999;       
 }
 
-/* Chaque ligne d'option cliquable */
 .dropdown-action-item {
   width: 110%;
   background: none;
@@ -356,7 +321,7 @@
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 8px;           /* Espace entre l'émoji et le texte */
+  gap: 8px;          
 }
 
 .dropdown-action-item:hover {
@@ -364,7 +329,6 @@
   color: var(--primary-color);
 }
 
-/* Style rouge d'alerte pour le bouton supprimer */
 .dropdown-action-item.btn-item-delete {
   color: #c5221f;
 }
@@ -373,15 +337,14 @@
   background-color: #fce8e6;
   color: #c5221f;
 }
-/* 🔼 Classe magique pour forcer le menu à monter si c'est la dernière ligne */
+
 .dropdown-action-menu.open-upward {
   top: auto !important;
-  bottom: 100% !important; /* Positionne le menu AU-DESSUS des trois points */
-  margin-bottom: 5px;      /* Petit espace de sécurité */
-  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15); /* Inverse l'ombre vers le haut */
+  bottom: 100% !important; 
+  margin-bottom: 5px;      
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15); 
 }
 
-/* Fond sombre translucide derrière le pop-up */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -392,10 +355,9 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 2000; /* Reste par-dessus la sidebar et le tableau */
+  z-index: 2000; 
 }
 
-/* La boîte blanche du pop-up */
 .modal-box {
   background-color: #ffffff;
   width: 90%;
@@ -414,7 +376,7 @@
 }
 
 .modal-header {
-  background-color: #6ebe73; /* Reprend le bleu officiel de ton logo */
+  background-color: #6ebe73; 
   color: white;
   padding: 1.25rem 1.5rem;
   display: flex;
@@ -441,7 +403,6 @@
   overflow-y: auto;
 }
 
-/* Grille alignée sur ton modèle UML */
 .modal-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -469,7 +430,6 @@
   color: #3c4043;
 }
 
-/* Différence visuelle entre Details (lecture) et Modifier (écriture) */
 .modal-field input:not([readonly]) {
   background-color: #ffffff;
   border-color: #72d192;
@@ -484,12 +444,11 @@
   gap: 10px;
 }
 
-/* Style personnalisé pour les cases à cocher du tableau */
 .table-checkbox {
   width: 18px;
   height: 18px;
   cursor: pointer;
-  accent-color: #1a1f2c; /* Couleur sombre identique à ta capture pour la coche */
+  accent-color: #1a1f2c; 
   border-radius: 4px;
   transition: transform 0.1s ease;
 }
@@ -498,7 +457,6 @@
   transform: scale(1.05);
 }
 
-/* Optionnel : Met un léger fond bleuté sur la ligne entière si elle est cochée */
 .row-selected {
   background-color: #f8fafc !important;
 }
@@ -529,7 +487,7 @@
     background: #fff;
     color: #000;
   }
-
+}
   .attestation-document-box {
     border: 2px dashed #000; 
     padding: 20px;
@@ -596,22 +554,21 @@
     display: flex !important;
     flex-direction: row !important;
     align-items: flex-start !important;
-    margin-bottom: 4px; /* Petit espacement entre les lignes */
+    margin-bottom: 4px; 
     width: 100%;
   }
 
-  /* 🎯 CORRECTIF D'ALIGNEMENT EN LIGNE DES DONNÉES */
+ 
  .doc-body .label {
     font-weight: normal;
-    white-space: nowrap; /* Empêche le libellé de se couper */
-    margin-right: 6px;   /* Espace parfait entre le ":" et la valeur */
+    white-space: nowrap; 
+    margin-right: 6px;   
   }
 
-  /* 👥 FIXATION FLEXBOX : ALIGNEMENT PARFAIT EN BAS DE FEUILLE */
   .footer-container {
     display: flex !important;
     flex-direction: row !important;
-    justify-content: space-between !important; /* 🚀 POUSSE LA SIGNATURE DIRECTEMENT DANS LE CADRE VERT */
+    justify-content: space-between !important; 
     align-items: flex-start !important;
     margin-top: 25px;
     padding: 0 10px;
@@ -619,7 +576,6 @@
     box-sizing: border-box;
   }
 
-  /* Style de la boîte d'avis (Bloquée à gauche) */
   .warning-box {
     border: 1px solid #000;
     padding: 8px;
@@ -628,11 +584,9 @@
     line-height: 1.4;
     box-sizing: border-box;
   }
-
-  /* Style de la boîte de signature (Propulsée tout à droite dans le cadre vert) */
   .signature-box {
     width: 150%;
-    text-align: center; /* Centre le texte du bloc de signature sur lui-même */
+    text-align: center;
     font-size: 11px;
     line-height: 1.4;
     box-sizing: border-box;
@@ -647,7 +601,90 @@
   
   .signature-box .delegate {
     display: block;
-    margin-top: 35px; /* Laisse un grand espace blanc vertical pour la signature physique du Directeur */
+    margin-top: 35px; 
     font-style: italic;
     font-weight: 500;
   }
+
+ 
+  .sidebar-item {
+  transition: all 0.2s ease-in-out;
+  border-radius: 0 20px 20px 0; 
+  margin-right: 8px;
+  font-weight: 500;
+}
+
+.sidebar-item:hover {
+  background-color: #f1f3f4;
+  color: #202124 !important;
+}
+
+.sidebar-item.active {
+  background-color: #e8f0fe !important; 
+  color: #1a73e8 !important;
+  font-weight: 600;
+}
+
+.sidebar-item.active svg {
+  color: #1a73e8 !important; 
+}
+
+.sub-item:hover {
+  background-color: #e8eaed !important;
+}
+.sidebar {
+  height: 100vh;          
+  overflow-y: auto;        
+  overflow-x: hidden;      
+  box-sizing: border-box;
+}
+
+.sidebar::-webkit-scrollbar {
+  width: 8px;              
+}
+
+.sidebar::-webkit-scrollbar-track {
+  background: transparent; 
+  border-radius: 10px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background-color: #808080; 
+  border-radius: 10px;       
+  border: 2px solid #ffffff; 
+}
+
+.sidebar::-webkit-scrollbar-thumb:hover {
+  background-color: #606060;
+}
+.sidebar .sidebar-menu {
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.sidebar .sidebar-item {
+  white-space: nowrap !important; 
+  overflow: hidden !important;    
+  display: flex !important;
+  align-items: center !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  box-sizing: border-box !important;
+}
+
+@media screen and (min-width: 0px) {
+  div.sidebar[style*="width: 75px"] .sidebar-item {
+    justify-content: center !important; 
+    padding: 12px 0 !important;         
+  }
+
+  div.sidebar[style*="width: 75px"] .sidebar-item span {
+    display: none !important;          
+  }
+
+  div.sidebar[style*="width: 75px"] .sidebar-item svg {
+    margin: 0 !important;               
+    font-size: 1.4rem !important;       
+  }
+}

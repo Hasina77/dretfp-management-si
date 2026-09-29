@@ -13,7 +13,6 @@ const DemandeClient = () => {
   const [message, setMessage] = useState({ type: '', text: '' });
   const [loading, setLoading] = useState(false);
 
-  // Simulation de la table des demandes pour cet apprenant connecté
   const [mesDemandes, setMesDemandes] = useState([
     { id: 101, type: 'ATTESTATION', session: '2025', date: '15/08/2026', statut: 'VALIDE' },
     { id: 102, type: 'DIPLOME', session: '2025', date: '03/09/2026', statut: 'EN_ATTENTE' }
@@ -36,14 +35,7 @@ const DemandeClient = () => {
     if (fichierJustificatif) formData.append('file', fichierJustificatif);
 
     try {
-      // Bloc d'envoi vers FastAPI (Sera actif avec ton backend Python)
-      /* 
-      const response = await axios.post('http://localhost:8000/api/demandes/creer', formData, {
-        headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'multipart/form-data' }
-      });
-      */
-
-      // Simulation d'ajout en local immédiat pour le rendu visuel
+     
       const nouvelleDemande = {
         id: Date.now(),
         type: typeDocument,
@@ -65,7 +57,6 @@ const DemandeClient = () => {
 
   return (
     <div className="demande-container">
-      {/* BARRE SUPÉRIEURE */}
       <div className="demande-top-bar">
         <h1>DRETFP - Espace Éléve & Apprenant</h1>
         <button onClick={() => navigate('/dashboard')} style={{ marginBottom: '1rem', marginRight: '-60%', marginTop: '1rem', cursor: 'pointer', background: 'none', border: '1px solid #ccc', padding: '4px 15px', borderRadius: '4px' }}>← Retour</button>
@@ -73,10 +64,8 @@ const DemandeClient = () => {
         <button className="btn-table-action" onClick={() => window.location.href = '/login'}>Déconnexion</button>
       </div>
 
-      {/* CONTENU EN PLEIN ÉCRAN */}
       <div className="demande-content">
         
-        {/* COLONNE GAUCHE : FORMULAIRE OMNICANAL */}
         <div className="demande-form-section">
           <h2 className="form-title">Créer une nouvelle demande</h2>
           
@@ -123,8 +112,6 @@ const DemandeClient = () => {
             </button>
           </form>
         </div>
-
-        {/* COLONNE DROITE : SUIVI DES STATUTS */}
         <div className="demande-history-section">
           <h2 className="form-title">Suivi de mes demandes de titres</h2>
           <table className="history-table">

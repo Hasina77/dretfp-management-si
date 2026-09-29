@@ -3,7 +3,7 @@ import axios from 'axios';
 import './AuthChefCentre.css';
 
 const AuthChefCentre = () => {
-  const [isRegisterMode, setIsRegisterMode] = useState(false); // Alterne entre Inscription et Login
+  const [isRegisterMode, setIsRegisterMode] = useState(false); 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [centre, setCentre] = useState('Lycée Technique Fianarantsoa');
@@ -15,12 +15,10 @@ const AuthChefCentre = () => {
     setLoading(true);
     setMessage({ type: '', text: '' });
 
-    // On utilise l'adresse publique ngrok de ton backend FastAPI
     const baseUrl = 'https://loca.lt';
 
     try {
       if (isRegisterMode) {
-        //ENVOI DE L'INSCRIPTION AU SERVEUR PYTHON
         await axios.post(`${baseUrl}/register`, {
           email: email,
           password: password,
@@ -28,9 +26,8 @@ const AuthChefCentre = () => {
           centre_affectation: centre
         });
         setMessage({ type: 'success', text: 'Compte Chef de Centre créé ! Veuillez vous connecter.' });
-        setIsRegisterMode(false); // Bascule automatiquement sur le Login
+        setIsRegisterMode(false);
       } else {
-        //ENVOI DU LOGIN (FORMAT FORMULAIRE REQUIS PAR FASTAPI)
         const params = new URLSearchParams();
         params.append('username', email);
         params.append('password', password);
@@ -39,11 +36,9 @@ const AuthChefCentre = () => {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
         });
 
-        // Stockage des informations d'authentification dans le navigateur
         localStorage.setItem('dretfp_token', response.data.access_token);
-        localStorage.setItem('chef_centre_etablissement', centre); // Mémorise son centre pour le formulaire
+        localStorage.setItem('chef_centre_etablissement', centre); 
 
-        // Redirection vers le formulaire de saisie des notes
         window.location.href = '/saisie-centre-public';
       }
     } catch (err) {

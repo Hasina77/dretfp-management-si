@@ -1,10 +1,26 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import logoDretfp from '/src/assets/images/logo.jpeg'; 
+import logoDretfp from '/src/assets/images/logo.jpeg';
+import { 
+  LuLayoutDashboard, 
+  LuUsers, 
+  LuFileText, 
+  LuBriefcase, 
+  LuFolder, 
+  LuLayers, 
+  LuHammer,
+  LuSchool,
+  LuCalendar,
+  LuUserCheck,
+  LuChevronDown,
+  LuChevronsLeft,
+  LuChevronsRight,
+  LuAward
+} from 'react-icons/lu'; 
 
-const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterType, setFilterType, demandes = [] }) => {
-  // 🎯 État local pour gérer l'ouverture et la fermeture de l'accordéon déroulant à symbole
+const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterType, setFilterType, demandes = [], isSidebarOpen, setIsSidebarOpen }) => {
   const [sousMenuOuvert, setSousMenuOuvert] = useState(false);
+  const [champOuvert, setChampOuvert] = useState(false);
   const navigate = useNavigate();
 
   const countAttestationsEnCours = demandes.filter(
@@ -16,130 +32,145 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterT
   ).length;
 
   return (
-    <div className="sidebar">
-      {/* En-tête avec logo officiel et texte alignés */}
-      <div className="sidebar-logo">
-        <img 
-          src={logoDretfp} 
-          alt="Logo DRETFP" 
-          className="logo-img" 
-          onError={(e) => { e.target.src = "https://flaticon.com" }} 
-        />
-        <span>DRETFP</span>
+    <div 
+      className="sidebar notranslate" 
+      translate="no"
+      style={{ 
+        backgroundColor: '#ffffff', 
+        borderRight: '1px solid #dadce0', 
+        height: '100vh', 
+        padding: '1rem 0', 
+        width: isSidebarOpen ? '260px' : '75px', 
+        transition: 'width 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
+        overflowY: 'auto', 
+        overflowX: 'hidden', 
+        position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
+        boxSizing: 'border-box'
+      }}
+    >
+      
+      <div className="sidebar-logo" style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        justifyContent: isSidebarOpen ? 'space-between' : 'center', 
+        padding: isSidebarOpen ? '0 1.2rem' : '0', 
+        marginBottom: '2rem',
+        width: '100%',
+        boxSizing: 'border-box',
+        height: '40px'
+      }}>
+        {isSidebarOpen && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img src={logoDretfp} alt="Logo" style={{ width: '35px', height: '34px', borderRadius: '4px' }} />
+            <span style={{ fontWeight: 'bold', color: '#3c4043', fontSize: '1.15rem', whiteSpace: 'nowrap' }}>DRETFP</span>
+          </div>
+        )}
+
+        <button 
+          type="button"
+          onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+          style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            color: '#5f6368',
+            fontSize: '1.3rem',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '8px',
+            borderRadius: '50%',
+            backgroundColor: isSidebarOpen ? 'transparent' : '#f1f3f4',
+            width: '40px',
+            height: '40px',
+            flexShrink: 0
+          }}
+          title={isSidebarOpen ? "Masquer le menu" : "Afficher le menu"}
+        >
+          {isSidebarOpen ? <LuChevronsLeft /> : <LuChevronsRight />}
+        </button>
       </div>
 
-      {/* Liste des menus connectés aux états de l'application */}
-      <ul className="sidebar-menu">
+      <ul className="sidebar-menu" style={{ listStyle: 'none', padding: 0, margin: 0, flex: 1 }}>
+        
         <li 
           className={`sidebar-item ${activeMenu === 'dashboard' ? 'active' : ''}`} 
           onClick={() => setActiveMenu('dashboard')}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'flex-start' : 'center', gap: '14px', padding: '12px 1.5rem', cursor: 'pointer', color: '#5f6368', whiteSpace: 'nowrap' }}
         >
-          Tableau de bord
+          <LuLayoutDashboard style={{ fontSize: '1.35rem', flexShrink: 0 }} />
+          {isSidebarOpen && <span>Tableau de bord</span>}
         </li>
         
         <li 
           className={`sidebar-item ${activeMenu === 'liste_apprenants' ? 'active' : ''}`} 
           onClick={() => setActiveMenu('liste_apprenants')}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'flex-start' : 'center', gap: '14px', padding: '12px 1.5rem', cursor: 'pointer', color: '#5f6368', whiteSpace: 'nowrap' }}
         >
-          Liste des Apprenants
+          <LuUsers style={{ fontSize: '1.35rem', flexShrink: 0 }} />
+          {isSidebarOpen && <span>Liste des Apprenants</span>}
         </li>
 
         <li 
           className={`sidebar-item ${activeMenu === 'liste_demandes' ? 'active' : ''}`} 
           onClick={() => {
-            setActiveMenu('liste_demandes'); // Ouvre ton tableau global de demandes
-            setFilterType('Tous');           // Affiche tout par défaut sur cet onglet
-            setNotifCount(0);                // Remet automatiquement le compteur de badge à 0
+            setActiveMenu('liste_demandes');
+            setFilterType('Tous');
+            setNotifCount(0);
           }}
-          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'space-between' : 'center', padding: '12px 1.5rem', cursor: 'pointer', color: '#5f6368', whiteSpace: 'nowrap' }}
         >
-          <span>Liste des Demandes</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <LuFileText style={{ fontSize: '1.35rem', flexShrink: 0 }} />
+            {isSidebarOpen && <span>Liste des Demandes</span>}
+          </div>
           
-          {/* Badge rouge chiffré dynamique */}
-          {notifCount > 0 && (
-            <span style={{ 
-              backgroundColor: '#e53e3e', 
-              color: 'white', 
-              fontSize: '0.75rem', 
-              fontWeight: 'bold', 
-              padding: '2px 8px', 
-              borderRadius: '10px' 
-            }}>
+          {isSidebarOpen && notifCount > 0 && (
+            <span style={{ backgroundColor: '#e53e3e', color: 'white', fontSize: '0.75rem', fontWeight: 'bold', padding: '2px 8px', borderRadius: '10px', flexShrink: 0 }}>
               {notifCount}
             </span>
           )}
         </li>
 
-         {/* 🎯 ACCORDÉON DÉROULANT : LISTE DES TRAITEMENTS */}
         <li 
           className={`sidebar-item ${activeMenu.startsWith('traitement_') ? 'active' : ''}`} 
-          onClick={() => setSousMenuOuvert(!sousMenuOuvert)}
-          style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center',
-            cursor: 'pointer'
-          }}
+          onClick={() => isSidebarOpen && setSousMenuOuvert(!sousMenuOuvert)}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'space-between' : 'center', padding: '12px 1.5rem', cursor: 'pointer', color: '#5f6368', whiteSpace: 'nowrap' }}
         >
-          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>Liste des Traitements</span>
-            {/* Petit badge global jaune si des traitements généraux attendent */}
-            {(countAttestationsEnCours + countDiplomesEnCours) > 0 && !sousMenuOuvert && (
-              <span style={{ backgroundColor: '#dd6b20', color: 'white', fontSize: '0.7rem', padding: '1px 6px', borderRadius: '8px', fontWeight: 'bold' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+            <LuLayers style={{ fontSize: '1.3rem', flexShrink: 0 }} />
+            {isSidebarOpen && <span>Liste des Traitements</span>}
+            {isSidebarOpen && (countAttestationsEnCours + countDiplomesEnCours) > 0 && !sousMenuOuvert && (
+              <span style={{ backgroundColor: '#dd6b20', color: 'white', fontSize: '0.7rem', padding: '1px 6px', borderRadius: '8px', fontWeight: 'bold', flexShrink: 0 }}>
                 {countAttestationsEnCours + countDiplomesEnCours}
               </span>
             )}
-          </span>
-          
-          <span style={{ 
-            fontSize: '0.7rem', 
-            color: '#a0aec0', 
-            transform: sousMenuOuvert ? 'rotate(180deg)' : 'rotate(0deg)',
-            transition: 'transform 0.2s ease'
-          }}>
-            ▼
-          </span>
+          </div>
+          {isSidebarOpen && <LuChevronDown style={{ fontSize: '0.9rem', color: '#a0aec0', transform: sousMenuOuvert ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s', flexShrink: 0 }} />}
         </li>
 
-        {/* 🎯 SOUS-MENUS AVEC COMPTEURS INDIVIDUELS INTÉGRÉS */}
-        {sousMenuOuvert && (
-          <ul style={{ 
-            listStyle: 'none', 
-            paddingLeft: '1.2rem', 
-            margin: '4px 0',
-            background: '#f7fafc', 
-            borderLeft: '3px solid #002f6c',
-            borderRadius: '0 4px 4px 0'
-          }}>
+        {isSidebarOpen && sousMenuOuvert && (
+          <ul style={{ listStyle: 'none', paddingLeft: '2.5rem', background: '#f8f9fa' }}>
             <li 
               className={`sidebar-item sub-item ${activeMenu === 'traitement_attestation' ? 'active' : ''}`} 
-              onClick={() => {
-                setFilterType('ATTESTATION');
-                setActiveMenu('traitement_attestation');
-              }}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', fontSize: '0.85rem' }}
+              onClick={() => { setFilterType('ATTESTATION'); setActiveMenu('traitement_attestation'); }}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
-              <span>Traitement attestation</span>
-              
-              {/* Badge numérique bleu pour les Attestations en cours */}
+              <span>📜 Traitement attestation</span>
               {countAttestationsEnCours > 0 && (
                 <span style={{ backgroundColor: '#3182ce', color: 'white', fontSize: '0.7rem', fontWeight: 'bold', padding: '1px 6px', borderRadius: '8px' }}>
                   {countAttestationsEnCours}
                 </span>
               )}
             </li>
-            
             <li 
               className={`sidebar-item sub-item ${activeMenu === 'traitement_diplome' ? 'active' : ''}`} 
-              onClick={() => {
-                setFilterType('DIPLOME');
-                setActiveMenu('traitement_diplome');
-              }}
-              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', fontSize: '0.85rem' }}
+              onClick={() => { setFilterType('DIPLOME'); setActiveMenu('traitement_diplome'); }}
+              style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
-              <span>Traitement diplôme</span>
-              
-              {/* Badge numérique bleu pour les Diplômes en cours */}
+              <span>🎓 Traitement diplôme</span>
               {countDiplomesEnCours > 0 && (
                 <span style={{ backgroundColor: '#3182ce', color: 'white', fontSize: '0.7rem', fontWeight: 'bold', padding: '1px 6px', borderRadius: '8px' }}>
                   {countDiplomesEnCours}
@@ -148,22 +179,136 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterT
             </li>
           </ul>
         )}
-          
         <li 
           className={`sidebar-item ${activeMenu === 'liste_etablissements' ? 'active' : ''}`} 
           onClick={() => setActiveMenu('liste_etablissements')}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: isSidebarOpen ? 'flex-start' : 'center', 
+            gap: '12px', 
+            padding: '10px 1.5rem', 
+            cursor: 'pointer', 
+            color: '#5f6368',
+            whiteSpace: 'nowrap'
+          }}
         >
-          Liste des Établissements
+          <LuSchool style={{ fontSize: '1.2rem', color: '#5f6368', flexShrink: 0 }} />
+          {isSidebarOpen && <span>Liste des Établissements</span>}
+        </li>
+
+        <li 
+          className={`sidebar-item ${activeMenu === 'liste_examens' ? 'active' : ''}`} 
+          onClick={() => setActiveMenu('liste_examens')}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: isSidebarOpen ? 'flex-start' : 'center', 
+            gap: '14px', 
+            padding: '12px 1.5rem', 
+            cursor: 'pointer', 
+            color: '#5f6368', 
+            whiteSpace: 'nowrap' 
+          }}
+        >
+          <LuAward style={{ fontSize: '1.35rem', flexShrink: 0 }} />
+          {isSidebarOpen && <span>Examens</span>}
+        </li>
+
+        <li 
+          className={`sidebar-item ${activeMenu.startsWith('liste_') && ['liste_secteurs', 'liste_filieres', 'liste_metiers'].includes(activeMenu) ? 'active' : ''}`} 
+          onClick={() => isSidebarOpen && setChampOuvert(!champOuvert)} 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: isSidebarOpen ? 'space-between' : 'center', 
+            padding: '10px 1.5rem', 
+            cursor: isSidebarOpen ? 'pointer' : 'default', 
+            color: '#5f6368',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <LuBriefcase style={{ fontSize: '1.2rem', color: '#5f6368', flexShrink: 0 }} />
+            {isSidebarOpen && <span>Champ professionnel</span>}
+          </div>
+          {isSidebarOpen && (
+            <LuChevronDown style={{ 
+              fontSize: '0.9rem', 
+              color: '#a0aec0', 
+              transform: champOuvert ? 'rotate(180deg)' : 'rotate(0deg)', 
+              transition: 'transform 0.2s' 
+            }} />
+          )}
+        </li>
+
+        {isSidebarOpen && champOuvert && (
+          <ul style={{ listStyle: 'none', paddingLeft: '2.5rem', background: '#f8f9fa' }}>
+            <li 
+              className={`sidebar-item sub-item ${activeMenu === 'liste_secteurs' ? 'active' : ''}`} 
+              onClick={() => setActiveMenu('liste_secteurs')}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              <LuFolder style={{ fontSize: '1rem', color: '#718096', flexShrink: 0 }} />
+              <span>Secteurs</span>
+            </li>
+            
+            <li 
+              className={`sidebar-item sub-item ${activeMenu === 'liste_filieres' ? 'active' : ''}`} 
+              onClick={() => setActiveMenu('liste_filieres')}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              <LuFileText style={{ fontSize: '1rem', color: '#718096', flexShrink: 0 }} />
+              <span>Filières</span>
+            </li>
+            
+            <li 
+              className={`sidebar-item sub-item ${activeMenu === 'liste_metiers' ? 'active' : ''}`} 
+              onClick={() => setActiveMenu('liste_metiers')}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+              <LuHammer style={{ fontSize: '1rem', color: '#718096', flexShrink: 0 }} />
+              <span>Métiers</span>
+            </li>
+          </ul>
+        )}
+
+        <li 
+          className="sidebar-item" 
+          onClick={() => navigate('/saisie-notes')} 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: isSidebarOpen ? 'flex-start' : 'center',
+            gap: '12px', 
+            padding: '10px 1.5rem', 
+            cursor: 'pointer', 
+            color: '#5f6368',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <LuCalendar style={{ fontSize: '1.2rem', color: '#5f6368', flexShrink: 0 }} />
+          {isSidebarOpen && <span>Examens & Centres</span>}
         </li>
         
-        {/* Redirections vers les autres tables de routage React */}
-        <li className="sidebar-item" onClick={() => navigate('/saisie-notes')}>
-          Examens & Centres
+        <li 
+          className="sidebar-item" 
+          onClick={() => navigate('/login')} 
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: isSidebarOpen ? 'flex-start' : 'center',
+            gap: '12px', 
+            padding: '10px 1.5rem', 
+            cursor: 'pointer', 
+            color: '#5f6368',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          <LuUserCheck style={{ fontSize: '1.2rem', color: '#5f6368', flexShrink: 0 }} />
+          {isSidebarOpen && <span>Utilisateurs</span>}
         </li>
-        
-        <li className="sidebar-item" onClick={() => navigate('/login')}>
-          Utilisateurs
-        </li>
+
       </ul>
     </div>
   );

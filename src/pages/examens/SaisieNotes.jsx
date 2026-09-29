@@ -2,17 +2,15 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '/src/components/Sidebar';
 import * as XLSX from 'xlsx';
-import axios from 'axios'; // Utilisation d'axios direct pour passer à travers le tunnel ngrok public
+import axios from 'axios'; 
 import './SaisieNotes.css';
 
 const SaisieNotes = () => {
   const navigate = useNavigate();
   const [activeMenu, setActiveMenu] = useState('examens');
 
-  // Récupération automatique du centre d'affectation mémorisé lors du login
-  const centreAffecte = localStorage.getItem('chef_centre_etablissement') || 'Lycée Technique Fianarantsoa';
+  const centreAffecte = localStorage.getItem('chef_centre_etablissement') || 'Lycée Technique Ambositra';
 
-  // Attributs du formulaire conformes à ton dictionnaire de données UML
   const [immatriculation, setImmatriculation] = useState('');
   const [nom, setNom] = useState('');
   const [prenom, setPrenom] = useState('');
@@ -22,12 +20,10 @@ const SaisieNotes = () => {
   const [filiere, setFiliere] = useState('Génie Logiciel');
   const [mention, setMention] = useState('Passable');
 
-  // Grille de contrôle temporaire avant l'envoi global
   const [listeSaisieCentre, setListeSaisieCentre] = useState([]);
   const [status, setStatus] = useState({ type: '', text: '' });
   const [loading, setLoading] = useState(false);
 
-  // 1. Ajouter un candidat au lot courant du formulaire
   const ajouterCandidatAuLot = (e) => {
     e.preventDefault();
     
@@ -38,14 +34,13 @@ const SaisieNotes = () => {
       date_naiss: dateNaiss,
       lieu_naiss: lieuNaiss,
       examen_id: examen,
-      etablissement_id: centreAffecte, // Verrouillé sur son centre d'affectation
+      etablissement_id: centreAffecte, 
       filiere_id: filiere,
       session: 2026,
       mention: mention,
       progression: 'AUCUNE_DEMANDE'
     };
 
-    // Vérification locale des doublons dans le lot actuel
     if (listeSaisieCentre.some(item => item.im_apprenant === nouvelApprenant.im_apprenant)) {
       alert("⚠️ Ce numéro matricule (IM) est déjà présent dans votre liste de saisie courante.");
       return;
@@ -58,14 +53,12 @@ const SaisieNotes = () => {
     setStatus({ type: 'info', text: 'Candidat ajouté au lot local.' });
   };
 
-  // 2. 🚀 ENVOI DU LOT VIA LE TUNNEL NGROK VERS LA BASE DE DONNÉES CENTRALE
   const transmettreLotAuBureauCentral = async () => {
     if (listeSaisieCentre.length === 0) return;
     setLoading(false);
     setStatus({ type: '', text: '' });
 
     try {
-      // Connexion directe à l'adresse publique de ton API FastAPI ngrok
       const response = await axios.post('https://ngrok-free.app', {
         apprenants: listeSaisieCentre
       });
@@ -74,14 +67,13 @@ const SaisieNotes = () => {
 
       alert(`🚀 Transmission réussie !\n\n- ${ajoutes} fiches insérées en base de données.\n- ${doublons} doublons automatiquement ignorés.`);
       
-      setListeSaisieCentre([]); // Vide la table locale après synchronisation réussie
+      setListeSaisieCentre([]); 
       setStatus({ type: 'success', text: 'Toutes les données ont été centralisées au bureau régional.' });
     } catch (err) {
       setStatus({ type: 'error', text: '📡 Échec de synchronisation. Vos données restent sauvegardées dans votre navigateur.' });
     }
   };
 
-  // 3. Export de secours pour le Chef de Centre
   const exporterExcelLot = () => {
     const feuille = XLSX.utils.json_to_sheet(listeSaisieCentre);
     const classeur = XLSX.utils.book_new();
@@ -99,7 +91,7 @@ const SaisieNotes = () => {
             <h1>Espace Chef de Centre — {centreAffecte}</h1>
           </div>
           <button className="btn-action-top" style={{ backgroundColor: '#c5221f' }} onClick={() => { localStorage.clear(); window.location.href = '/portail-terrain'; }}>
-            🚪 Quitter le Portail
+             Quitter le Portail
           </button>
         </div>
 
@@ -108,7 +100,6 @@ const SaisieNotes = () => {
 
           {status.text && <div className={`status-alert ${status.type}`} style={{ padding: '0.8rem', borderRadius: '4px', marginBottom: '1rem', fontWeight: 600, backgroundColor: status.type === 'success' ? '#e6f4ea' : status.type === 'error' ? '#fce8e6' : '#e8f0fe', color: status.type === 'success' ? '#137333' : status.type === 'error' ? '#c5221f' : '#1a73e8' }}>{status.text}</div>}
 
-          {/* Grille de saisie dynamique */}
           <form onSubmit={ajouterCandidatAuLot} className="chef-centre-form-grid">
             <div className="input-field-block"><label>N° IM (Matricule)</label><input type="number" value={immatriculation} onChange={(e) => setImmatriculation(e.target.value)} placeholder="Ex: 2026105" required /></div>
             <div className="input-field-block"><label>Nom de Famille</label><input type="text" value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Ex: RAKOTO" required /></div>
@@ -132,7 +123,6 @@ const SaisieNotes = () => {
             </div>
           </form>
 
-          {/* Barre d'actions collectonnées */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '2rem 0 1rem 0' }}>
             <div className="section-title" style={{ margin: 0 }}>Aperçu de la Liste des Candidats Saisis ({listeSaisieCentre.length})</div>
             <div style={{ display: 'flex', gap: '10px' }}>
@@ -143,7 +133,6 @@ const SaisieNotes = () => {
             </div>
           </div>
 
-          {/* Grille récapitulative terrain */}
           <div className="data-table-container">
             <table className="data-table">
               <thead>

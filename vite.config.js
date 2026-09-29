@@ -6,7 +6,6 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      // 🚀 Redirection magique : tout appel vers /api ira vers ton serveur Python
       '/api': {
         target: 'http://localhost:8000',
         changeOrigin: true,
