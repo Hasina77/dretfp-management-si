@@ -5,6 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
+    host: true, 
+    
+    allowedHosts: ['dretfp.mg', 'www.dretfp.mg'],
+    
     proxy: {
       '/api': {
         target: 'http://localhost:8000',
@@ -14,4 +18,3 @@ export default defineConfig({
     }
   }
 });
-

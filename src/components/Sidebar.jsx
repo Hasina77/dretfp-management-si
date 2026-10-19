@@ -309,6 +309,15 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterT
           {isSidebarOpen && <span>Utilisateurs</span>}
         </li>
 
+        <button 
+          type="button" 
+          onClick={() => setActiveMenu('simulateur_etudiant')}
+          style={{ backgroundColor: '#34a853', color: '#fff', margin: '10px', padding: '8px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}
+        >
+          📱 Simuler un Étudiant
+        </button>
+
+
       </ul>
     </div>
   );

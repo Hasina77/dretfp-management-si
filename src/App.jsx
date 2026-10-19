@@ -6,6 +6,7 @@ import DashboardAdmin from './pages/demandes/DashboardAdmin';
 import SaisieNotes from './pages/examens/SaisieNotes';
 import SaisieCentreTerrain from './pages/examens/SaisieCentreTerrain';
 import AuthChefCentre from './pages/examens/AuthChefCentre';
+import PortailPublic from './pages/demandes/PortailPublic';
 
 function App() {
   return (
@@ -24,6 +25,8 @@ function App() {
         <Route path="/demande-diplome" element={<DemandeClient />} />
 
         <Route path="/portail-terrain" element={<AuthChefCentre />} />
+
+        <Route path="/demande-en-ligne" element={<PortailPublic />} />
 
 
         <Route path="*" element={<div style={{ padding: '2rem', fontFamily: 'sans-serif', textTransform: 'uppercase', color: 'red' }}>Page introuvable</div>} />

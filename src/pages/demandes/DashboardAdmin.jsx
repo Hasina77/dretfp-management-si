@@ -8,6 +8,7 @@ import './DashboardAdmin.css';
 import { 
   LuUserPlus      
 } from 'react-icons/lu';
+import PortailPublic from './PortailPublic';
 
 
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
@@ -49,11 +50,14 @@ const DashboardAdmin = () => {
   const [selectedDemande, setSelectedDemande] = useState(null);
   const [showTraiteModal, setShowTraiteModal] = useState(false);
 
-   const [showEnLigneModal, setShowEnLigneModal] = useState(false);
-   const [demandesCochees, setDemandesCochees] = useState([]);
-   const [apprenantsCoches, setApprenantsCoches] = useState([]);
-   const [demandesTraitementCochees, setDemandesTraitementCochees] = useState([]);
-  
+  const [showEnLigneModal, setShowEnLigneModal] = useState(false);
+  const [demandesCochees, setDemandesCochees] = useState([]);
+  const [apprenantsCoches, setApprenantsCoches] = useState([]);
+  const [demandesTraitementCochees, setDemandesTraitementCochees] = useState([]);
+  const [diplomesCoches, setDiplomesCoches] = useState([]);
+  const [demandesListeCochees, setDemandesListeCochees] = useState([]);
+  const [demandesEnLigneCochees, setDemandesEnLigneCochees] = useState([]);
+
   const [openDemandeMenuId, setOpenDemandeMenuId] = useState(null);
   const [openTraitementMenuId, setOpenTraitementMenuId] = useState(null);
 
@@ -429,24 +433,56 @@ const DashboardAdmin = () => {
     return matchSearch && matchAnnee && matchCentre && matchSecteur && matchFiliere && matchMetier;
   });
 
+  const catalogueGlobalDemandes = typeof listeDemandes !== 'undefined' ? listeDemandes : (typeof demandes !== 'undefined' ? demandes : []);
   
+  const diplomesTraitesFiltres = catalogueGlobalDemandes.filter(d => {
+    const estUnDiplome = (d.type_document || "").toUpperCase() === 'DIPLOME';
+    
+    const estValide = ['EN_TRAITEMENT', 'EN_COURS', 'OBTENU', 'TERMINER', 'EN_ATTENTE'].includes((d.statut || "").toUpperCase());
+    if (!estUnDiplome || !estValide) return false;
+
+    const texteRecherche = searchTraitement.toLowerCase().trim();
+    const matchTexte = !texteRecherche || 
+      (d.nom_complet || "").toLowerCase().includes(texteRecherche) ||
+      (d.im_apprenant || "").toString().toLowerCase().includes(texteRecherche);
+
+    const matchSession = sessionTraitement === 'Tous' || 
+      (d.session || "").toString() === sessionTraitement.toString();
+
+    const centreDmd = (d.centre_examen || "LTP AMBOSITRA").toUpperCase();
+    const matchCentre = filterCentreTraitement === 'Tous' || centreDmd === filterCentreTraitement.toUpperCase();
+
+    const statutDmd = (d.statut || "EN_TRAITEMENT").toUpperCase();
+    const matchStatut = filterStatutTraitement === 'Tous' || statutDmd === filterStatutTraitement.toUpperCase();
+
+    return matchTexte && matchSession && matchCentre && matchStatut;
+  });
+
  
 
   const demandesFiltrees = (demandes || []).filter(item => {
     if (!item) return false;
+
+    const statutItem = (item.statut || "EN_ATTENTE").toString().toUpperCase();
+    const estPrisEnCharge = ['RECU', 'EN_TRAITEMENT', 'EN_COURS', 'TERMINER', 'OBTENU'].includes(statutItem);
+    if (!estPrisEnCharge) return false;
+
     const nomAchercher = (item.nom_complet || item.nom || "").toString().toLowerCase();
     const imAchercher = (item.im_apprenant || item.matricule || "").toString().toLowerCase();
-    const saisie = searchNomIm.toLowerCase();
+    const saisie = (searchNomIm || "").toLowerCase().trim();
     const matchSearch = nomAchercher.includes(saisie) || imAchercher.includes(saisie);
+
     const docItem = (item.type_document || item.type || "").toString().toUpperCase();
     const matchDoc = filterDoc === 'Tous' || docItem === filterDoc.toUpperCase();
+
     const centreItem = (item.centre_examen || item.centre || "").toString().toLowerCase();
     const matchCentre = filterCentre === 'Tous' || centreItem === filterCentre.toLowerCase();
-    const statutItem = (item.statut || "").toString().toUpperCase();
+
     const matchStatut = filterStatutDemande === 'Tous' || statutItem === filterStatutDemande.toUpperCase();
 
     return matchSearch && matchDoc && matchCentre && matchStatut;
   });
+
 
   const apprenantsVisualises = (apprenants || []).filter(app => {
     if (!app) return false;
@@ -599,16 +635,25 @@ const DashboardAdmin = () => {
   };
 
   const handleEnvoyerAuTraitement = async () => {
+    if (!selectedDemande) return;
+    const idCible = selectedDemande.id_demande ?? selectedDemande.id;
+
     try {
-      await API.put(`/demandes/envoyer-au-traitement/${selectedDemande.id_demande}`);
-      alert(`✅ Dossier transféré avec succès dans la "Liste des Traitements" (${selectedDemande.type_document.toLowerCase()}) !`);
-      await chargerDemandes(); 
+      // 🚀 Force le passage au statut "RECU" pour transférer le dossier vers la Liste des Demandes
+      await API.put(`/demandes/changer-statut-diplome/${idCible}?statut_cible=RECU`);
+
+      alert(`📥 Dossier de ${selectedDemande.nom_complet || 'l\'apprenant'} pris en charge et transféré dans la Liste des Demandes !`);
+      
+      if (typeof chargerDemandes === 'function') await chargerDemandes(); 
       setShowTraiteModal(false);
       setSelectedDemande(null);
     } catch (err) {
-      alert("Erreur lors du transfert du dossier au traitement.");
+      console.error(err);
+      alert("Erreur lors de la prise en charge du dossier.");
     }
   };
+
+
 
   const handleSignerDocumentDefinitif = async (idDemande) => {
     if (window.confirm("✒️ Confirmez-vous l'apposition de la signature officielle sur ce titre ?")) {
@@ -1209,8 +1254,11 @@ const chargerDemandes = async () => {
         im_apprenant: String(candidat.im_apprenant).trim(),
         nom_complet: nomCompletCalcule,
         type_document: String(typeDoc).trim().toUpperCase(),
-        centre_examen: String(nomCentreExamen).trim()
+        centre_examen: String(nomCentreExamen).trim(),
+        statut: "EN_TRAITEMENT"
       };
+
+
 
       try {
         await API.post('/demandes/creer', payload);
@@ -1292,6 +1340,221 @@ const chargerDemandes = async () => {
     return matchTexte && matchSession && matchDoc && matchCentre && matchStatut;
   });
 
+  const handleSignatureEnMasseDiplomes = async () => {
+    if (!diplomesCoches || diplomesCoches.length === 0) return;
+
+    if (!window.confirm(`❓ Voulez-vous valider et homologuer automatiquement les ${diplomesCoches.length} diplôme(s) sélectionné(s) ?`)) {
+      return;
+    }
+
+    let succesCount = 0;
+
+    for (const idLigne of diplomesCoches) {
+      const catalogue = typeof listeDemandes !== 'undefined' ? listeDemandes : (typeof demandes !== 'undefined' ? demandes : []);
+      const demande = catalogue.find(d => (d.id_demande ?? d.id) === idLigne);
+      if (!demande) continue;
+
+      try {
+        const idCible = demande.id_demande ?? demande.id;
+        await API.put(`/demandes/imprimer/${idCible}`);
+        succesCount++;
+      } catch (err) {
+        console.error(`❌ Échec d'homologation pour l'ID ${idLigne} :`, err);
+      }
+    }
+
+    alert(`📊 Opération terminée :\n✅ ${succesCount} diplôme(s) homologué(s) et signé(s) avec succès dans MySQL !`);
+
+    if (typeof chargerDemandes === 'function') await chargerDemandes();
+    if (typeof chargerApprenants === 'function') await chargerApprenants();
+    setDiplomesCoches([]); 
+  };
+
+  const handleExporterGroupesDiplomesExcel = async () => {
+    if (!diplomesCoches || diplomesCoches.length === 0) return;
+
+    if (!window.confirm(`📊 Voulez-vous exporter les ${diplomesCoches.length} diplôme(s) sélectionné(s) en Excel ?`)) {
+      return;
+    }
+
+    const catalogue = typeof listeDemandes !== 'undefined' ? listeDemandes : (typeof demandes !== 'undefined' ? demandes : []);
+    const lignesAExporter = [];
+    let succesCount = 0;
+
+    for (const idLigne of diplomesCoches) {
+      const dmd = catalogue.find(d => (d.id_demande ?? d.id) === idLigne);
+      if (!dmd) continue;
+
+      const cibleApprenant = (apprenants || []).find(app => String(app.im_apprenant).trim() === String(dmd.im_apprenant).trim());
+      const etabTrouve = (listeEtablissements || []).find(e => (e.id_etablissement ?? e.id ?? e.id_centre)?.toString() === cibleApprenant?.etablissement_id?.toString());
+      const nomEtablissement = etabTrouve ? (etabTrouve.nom_etablissement || etabTrouve.nom) : (dmd.centre_examen || "Non spécifié");
+      const nomSec = (listeSecteurs || []).find(s => (s.id_secteur ?? s.id)?.toString() === cibleApprenant?.secteur_id?.toString())?.nom_secteur || "Non spécifié";
+      const nomFil = (listeFilieres || []).find(f => (f.id_filiere ?? f.id)?.toString() === cibleApprenant?.filiere_id?.toString())?.nom_filiere || "Non spécifiée";
+      const nomMet = (listeMetiers || []).find(m => (m.id_metier ?? m.id)?.toString() === cibleApprenant?.metier_id?.toString())?.nom_metier || "Non spécifié";
+
+      lignesAExporter.push({
+        'MATRICULE (IM)': dmd.im_apprenant || 'N/A',
+        'NOM': cibleApprenant?.nom_apprenant || dmd.nom_complet || 'INCONNU',
+        'PRÉNOMS': cibleApprenant?.prenom_apprenant || '',
+        'DATE DE NAISSANCE': cibleApprenant?.date_naiss || '',
+        'LIEU DE NAISSANCE': (cibleApprenant?.lieu_naiss || '').toUpperCase(),
+        'EXAMEN (DIPLÔME)': String(cibleApprenant?.examen_id || dmd.type_document || 'DIPLOME').toUpperCase(),
+        'ÉTABLISSEMENT / CENTRE': nomEtablissement,
+        'SECTEUR': nomSec,
+        'FILIÈRE': nomFil,
+        'MÉTIER': nomMet,
+        'SESSION': cibleApprenant?.session || dmd.session || '',
+        'MENTION': String(cibleApprenant?.mention || 'Passable').toUpperCase(),
+        'STATUT DOCUMENT': 'En cours' 
+      });
+    }
+
+    try {
+      const feuilleTravail = XLSX.utils.json_to_sheet(lignesAExporter);
+      const classeur = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(classeur, feuilleTravail, "Registre");
+      XLSX.writeFile(classeur, `DRETFP_Export_Diplomes.xlsx`);
+
+      for (const idLigne of diplomesCoches) {
+        const dmd = catalogue.find(d => (d.id_demande ?? d.id) === idLigne);
+        if (!dmd) continue;
+        const idCible = dmd.id_demande ?? d.id;
+
+        await API.put(`/demandes/modifier/${idCible}`, {
+          ...dmd,
+          statut: 'EN_COURS'
+        });
+        succesCount++;
+      }
+
+      alert(`✅ Fichier Excel téléchargé avec succès !\n🚀 Les ${succesCount} diplômes cochés passent désormais au statut "En cours".`);
+
+    } catch (err) {
+      console.error("❌ Erreur d'exportation Excel :", err);
+      alert("⚠️ Erreur réseau lors de la mise à jour des statuts dans MySQL.");
+    }
+
+    if (typeof chargerDemandes === 'function') await chargerDemandes();
+    setDiplomesCoches([]); 
+  };
+
+  const handleBasculerStatutObtenu = async (demandeSelectionnee) => {
+    if (!demandeSelectionnee) return;
+    
+    const nomCandidat = demandeSelectionnee.nom_complet || "cet apprenant";
+
+    if (!window.confirm(`🎓 Confirmez-vous que le diplôme officiel de ${nomCandidat} est arrivé à la direction régionale et a été obtenu par l'élève ?`)) {
+      return;
+    }
+
+    const idCible = demandeSelectionnee.id_demande ?? demandeSelectionnee.id;
+
+    const payloadModif = {
+      im_apprenant: String(demandeSelectionnee.im_apprenant).trim(),
+      nom_complet: String(demandeSelectionnee.nom_complet).trim().toUpperCase(),
+      type_document: String(demandeSelectionnee.type_document || "DIPLOME").trim().toUpperCase(),
+      centre_examen: String(demandeSelectionnee.centre_examen || "LTP AMBOSITRA").trim().toUpperCase(),
+      statut: "OBTENU" 
+    };
+
+    try {
+      await API.put(`/demandes/modifier/${idCible}`, payloadModif);
+
+      alert(`🎉 Félicitations ! Le diplôme de ${nomCandidat} est désormais validé comme "Obtenu".`);
+      
+      if (typeof chargerDemandes === 'function') await chargerDemandes();
+    } catch (err) {
+      console.error("❌ Erreur lors du passage au statut Obtenu :", err);
+      alert("⚠️ Impossible de mettre à jour le statut dans la base MySQL.");
+    }
+  };
+  
+  const handleEnvoyerAuTraitementGroupes = async () => {
+    if (!demandesListeCochees || demandesListeCochees.length === 0) return;
+
+    if (!window.confirm(`❓ Voulez-vous envoyer en traitement les ${demandesListeCochees.length} demande(s) sélectionnée(s) d'un seul clic ?`)) {
+      return;
+    }
+
+    let succesCount = 0;
+    const catalogue = typeof listeDemandes !== 'undefined' ? listeDemandes : (typeof demandes !== 'undefined' ? demandes : []);
+
+    for (const idLigne of demandesListeCochees) {
+      const dem = catalogue.find(d => (d.id_demande ?? d.id) === idLigne);
+      if (!dem) continue;
+
+      const idCible = dem.id_demande ?? dem.id;
+      const typeDoc = String(dem.type_document || 'ATTESTATION').toUpperCase();
+      
+      const statutCible = typeDoc === 'ATTESTATION' ? 'EN_COURS' : 'EN_TRAITEMENT';
+
+      try {
+        await API.put(`/demandes/changer-statut-diplome/${idCible}?statut_cible=${statutCible}`);
+        succesCount++;
+      } catch (err) {
+        console.error(`❌ Échec de transfert pour la demande ID ${idLigne} :`, err);
+      }
+    }
+
+    alert(`📊 Opération de masse achevée :\n✅ ${succesCount} demande(s) envoyée(s) avec succès dans leurs onglets de traitement respectifs.`);
+
+    if (typeof chargerDemandes === 'function') await chargerDemandes();
+    if (typeof chargerApprenants === 'function') await chargerApprenants();
+    setDemandesListeCochees([]); 
+  };
+
+  
+
+const soumettreDemandeEnLigne = async (donneesFormulaire) => {
+  const payload = {
+    im_apprenant: donneesFormulaire.matricule,
+    nom_apprenant: donneesFormulaire.nom,
+    prenom_apprenant: donneesFormulaire.prenom || "",
+    session: parseInt(donneesFormulaire.anneeSession),
+    type_document: donneesFormulaire.typeDoc 
+  };
+
+  try {
+    const response = await axios.post('http://localhost:8000/api/demandes/recevoir-enligne', payload);
+    alert("✅ Votre demande a bien été envoyée à la Direction Régionale. Statut : En attente.");
+  } catch (err) {
+    alert(`⚠️ Échec de l'envoi : ${err.response?.data?.detail || "Serveur injoignable"}`);
+  }
+};
+
+   const handlePrendreEnChargeGroupes = async () => {
+    if (!demandesEnLigneCochees || demandesEnLigneCochees.length === 0) return;
+
+    if (!window.confirm(`📥 Voulez-vous prendre en charge et transférer les ${demandesEnLigneCochees.length} demande(s) sélectionnée(s) ?`)) {
+      return;
+    }
+
+    let succesCount = 0;
+    const catalogue = typeof listeDemandes !== 'undefined' ? listeDemandes : (typeof demandes !== 'undefined' ? demandes : []);
+
+    for (const idLigne of demandesEnLigneCochees) {
+      const dem = catalogue.find(d => (d.id_demande ?? d.id) === idLigne);
+      if (!dem) continue;
+      const idCible = dem.id_demande ?? dem.id;
+
+      try {
+        await API.put(`/demandes/changer-statut-diplome/${idCible}?statut_cible=RECU`);
+        succesCount++;
+      } catch (err) {
+        console.error(`❌ Échec pour l'ID ${idLigne} :`, err);
+      }
+    }
+
+    alert(`📊 Opération terminée :\n✅ ${succesCount} demande(s) en ligne transférée(s) avec succès.`);
+    if (typeof chargerDemandes === 'function') await chargerDemandes();
+    setDemandesEnLigneCochees([]);
+  };
+
+  useEffect(() => {
+    if (window.location.pathname === '/demande-en-ligne') {
+      setActiveMenu('simulateur_etudiant');
+    }
+  }, []);
 
 
 
@@ -1305,31 +1568,22 @@ const chargerDemandes = async () => {
           <div className="header-title">
             <h1>Direction Régionale de l'Enseignement Technique</h1>
           </div>
-                <button 
-                  type="button"
-                  title="Consulter les demandes soumises en ligne"
-                  onClick={() => setShowEnLigneModal(true)} 
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    height: '38px',
-                    padding: '0 16px',
-                    borderRadius: '4px',
-                    border: '1px solid #1a73e8',
-                    backgroundColor: '#1a73e8',
-                    color: '#ffffff',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    fontSize: '0.9rem',
-                    transition: 'all 0.2s ease',
-                    boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1557b0'}
-                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1a73e8'}
-                >
-                  🌐 Demandes en Ligne
-                </button>
+            <button 
+              type="button"
+              className="btn-demandes-en-ligne"
+              onClick={() => {
+                setActiveMenu('demandes_en_ligne'); 
+                
+                if (typeof setOpenMenuId === 'function') setOpenMenuId(null);
+              }}
+              style={{ 
+                backgroundColor: '#1a73e8', color: '#ffffff', border: 'none', 
+                borderRadius: '4px', padding: '10px 16px', fontWeight: 'bold', 
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' 
+              }}
+            >
+              🌐 Demandes en Ligne
+            </button>
 
         </div>
 
@@ -1680,7 +1934,7 @@ const chargerDemandes = async () => {
                               {statutDemande === 'TERMINER' && <span className="status-badge valide">✅ Terminé / Signé</span>}
                               {statutDemande === 'EN_COURS' && <span className="status-badge en-cours" style={{ backgroundColor: '#e8f0fe', color: '#1a73e8' }}>⏳ En traitement</span>}
                               {statutDemande === 'EN_ATTENTE' && <span className="status-badge en-attente" style={{ backgroundColor: '#fef7e0', color: '#b06000' }}>⏳ En attente</span>}
-                              {statutDemande === 'AUCUNE_DEMANDE' && <span className="status-badge offline" style={{ backgroundColor: '#f1f3f4', color: '#5f6368' }}>❌ Aucune démarche</span>}
+                              {statutDemande === 'AUCUNE_DEMANDE' && <span className="status-badge offline" style={{ backgroundColor: '#f1f3f4', color: '#5f6368' }}>❌ Aucune</span>}
                             </td>
                                                       
                             <td>
@@ -1853,21 +2107,61 @@ const chargerDemandes = async () => {
                 </div>
               </div>
               <div className="data-table-container">
+                {(demandesListeCochees || []).length > 0 && (
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#e8f0fe', border: '1px solid #1a73e8', padding: '12px 20px', borderRadius: '6px', marginBottom: '15px' }}>
+                    <span style={{ color: '#185abc', fontWeight: '600' }}>⚡ En masse : <strong>{demandesListeCochees.length}</strong> demande(s) prête(s) pour traitement</span>
+                    <button
+                      type="button"
+                      onClick={handleEnvoyerAuTraitementGroupes}
+                      style={{ backgroundColor: '#1a73e8', color: '#ffffff', border: 'none', borderRadius: '4px', padding: '8px 16px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.88rem' }}
+                    >
+                       Envoyer à la Liste de Traitement
+                    </button>
+                  </div>
+                )}
+
                 <table className="data-table">
                   <thead>
                     <tr>
+                      <th style={{ width: '40px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={(() => {
+                            const catalogue = typeof listeDemandes !== 'undefined' ? listeDemandes : (typeof demandes !== 'undefined' ? demandes : []);
+                            const selectionnables = catalogue.filter(d => !['TERMINER', 'OBTENU', 'EN_COURS', 'EN_TRAITEMENT'].includes((d.statut || "").toUpperCase()));
+                            return selectionnables.length > 0 && (demandesListeCochees || []).length === selectionnables.length;
+                          })()}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const idsSelectionnables = (demandesFiltrees || [])
+                                .filter(d => !['EN_COURS', 'TERMINER', 'OBTENU'].includes((d.statut || "").toUpperCase()))
+                                .map(d => d.id_demande ?? d.id);
+                              setDemandesListeCochees(idsSelectionnables);
+                            } else {
+                              setDemandesListeCochees([]);
+                            }
+                          }}
+
+                          style={{ cursor: 'pointer' }}
+                        />
+                      </th>
                       <th>Matricule</th>
-                      <th>Nom</th>
+                      <th>Nom Complet</th>
                       <th>Document</th>
-                      <th>Centre</th>
-                      <th>Date</th>
+                      <th>Centre d'Examen</th>
+                      <th>Date Dépôt</th>
                       <th>Statut</th>
-                      <th>Action</th>
+                      <th style={{ textAlign: 'center' }}>Action</th>
                     </tr>
                   </thead>
+
                   <tbody>
-                    {(!demandesFiltrees || demandesFiltrees.length === 0) ? (
-                      <tr><td colSpan="7" className="no-entries">Aucune demande de titre dans le registre.</td></tr>
+                    {!demandesFiltrees || demandesFiltrees.length === 0 ? (
+                      <tr>
+                        <td colSpan="8" className="no-entries" style={{ padding: '2rem', textAlign: 'center', color: '#5f6368' }}>
+                           Aucune demande de titre ne correspond aux critères de recherche.
+                        </td>
+                      </tr>
                     ) : (
                       demandesFiltrees.map((dem, index) => {
                         const matriculeAffiche = dem.im_apprenant || dem.matricule || "N/A";
@@ -1877,114 +2171,255 @@ const chargerDemandes = async () => {
                         const dateAffiche = dem.date_depot || dem.date_demande || "En cours";
                         const statutAffiche = (dem.statut || "EN_ATTENTE").toString().toUpperCase();
 
+                        const estVerrouille = ['EN_COURS', 'TERMINER', 'OBTENU'].includes(statutAffiche);
+                        
+                        const idDemUnique = dem.id_demande || dem.id || index;
+                        const isCochee = (demandesListeCochees || []).includes(idDemUnique);
+
                         return (
-                          <tr key={dem.id_demande || dem.id || index}>
+                          <tr key={idDemUnique} style={{ backgroundColor: isCochee ? '#f8f9fa' : 'transparent' }}>
+                            
+                            <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                              <input
+                                type="checkbox"
+                                disabled={estVerrouille} 
+                                checked={isCochee}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setDemandesListeCochees(prev => [...(prev || []), idDemUnique]);
+                                  } else {
+                                    setDemandesListeCochees(prev => (prev || []).filter(id => id !== idDemUnique));
+                                  }
+                                }}
+                                style={{ 
+                                  cursor: estVerrouille ? 'not-allowed' : 'pointer',
+                                  transform: 'scale(1.1)'
+                                }}
+                              />
+                            </td>
+
                             <td><strong>{matriculeAffiche}</strong></td>
-                            <td>{nomAffiche}</td>
+                            <td style={{ fontWeight: '500' }}>{nomAffiche}</td>
                             <td><span style={{ fontWeight: 600, color: '#002f6c' }}>{docAffiche}</span></td>
                             <td>{centreAffiche}</td>
                             <td>{dateAffiche}</td>
-                            <td>
-                              <span className={`status-badge ${statutAffiche === 'TERMINER' ? 'valide' : statutAffiche === 'EN_COURS' ? 'en-cours' : 'en-attente'}`} style={{
-                                padding: '4px 8px', borderRadius: '4px', fontSize: '0.85rem', fontWeight: 600,
-                                backgroundColor: statutAffiche === 'TERMINER' ? '#e6f4ea' : statutAffiche === 'EN_COURS' ? '#e8f0fe' : '#fef7e0',
-                                color: statutAffiche === 'TERMINER' ? '#137333' : statutAffiche === 'EN_COURS' ? '#1a73e8' : '#b06000'
-                              }}>
-                                {statutAffiche === 'TERMINER' ? '✅ Terminer' : statutAffiche === 'EN_COURS' ? '⏳ En traitement' : '⏳ En attente'}
-                              </span>
-                            </td>
                             
-                            <td style={{ position: 'relative' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <button 
-                                  className="btn-table-action" 
-                                  style={{ 
-                                    padding: '4px 10px', 
-                                    cursor: (statutAffiche === 'TERMINER' || statutAffiche === 'EN_COURS') ? 'not-allowed' : 'pointer',
-                                    opacity: (statutAffiche === 'TERMINER' || statutAffiche === 'EN_COURS') ? 0.4 : 1
-                                  }} 
-                                  disabled={statutAffiche === 'TERMINER' || statutAffiche === 'EN_COURS'}
-                                  onClick={() => { setSelectedDemande(dem); setShowTraiteModal(true); }}
-                                >
-                                  {statutAffiche === 'TERMINER' ? 'Traité' : statutAffiche === 'EN_COURS' ? 'En cours' : 'Traître'}
-                                </button>
+                            <td>
+                              {(() => {
+                                if (statutAffiche === 'OBTENU') {
+                                  return <span className="status-badge" style={{ padding: '4px 8px', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem', backgroundColor: '#e6f4ea', color: '#137333' }}>🎓 Obtenu</span>;
+                                }
+                                if (statutAffiche === 'EN_COURS') {
+                                  return <span className="status-badge" style={{ padding: '4px 8px', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem', backgroundColor: '#fef7e0', color: '#b06000' }}>⏳ En cours</span>;
+                                }
+                                if (statutAffiche === 'EN_TRAITEMENT') {
+                                  return <span className="status-badge" style={{ padding: '4px 8px', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem', backgroundColor: '#e8f0fe', color: '#1a73e8' }}>⏳ En traitement</span>;
+                                }
+                                if (statutAffiche === 'TERMINER') {
+                                  return <span className="status-badge" style={{ padding: '4px 8px', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem', backgroundColor: '#e6f4ea', color: '#137333' }}>✅ Terminer</span>;
+                                }
+                                if (statutAffiche === 'RECU' || statutAffiche === 'EN_ATTENTE') {
+                                  return <span className="status-badge" style={{ padding: '4px 8px', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem', backgroundColor: '#f5f5f5', color: '#616161', border: '1px solid #dadce0' }}>⏳ En attente</span>;
+                                }
+                                return <span className="status-badge" style={{ padding: '4px 8px', borderRadius: '4px', fontWeight: 600, fontSize: '0.85rem', backgroundColor: '#f5f5f5', color: '#616161' }}>⏳ En attente</span>;
+                              })()}
+                            </td>
 
-                                <span 
-                                  style={{ cursor: 'pointer', fontSize: '1.2rem', padding: '0 4px', fontWeight: 'bold', color: '#5f6368' }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setOpenDemandeMenuId(openDemandeMenuId === dem.id_demande ? null : dem.id_demande);
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '5px' }}>
+                                <button
+                                  type="button"
+                                  className="btn-traiter"
+                                  disabled={estVerrouille}
+                                  onClick={() => {
+                                    setSelectedDemande(dem);
+                                    setShowTraiteModal(true);
+                                  }}
+                                  style={{
+                                    padding: '5px 10px',
+                                    borderRadius: '4px',
+                                    border: '1px solid #dadce0',
+                                    fontWeight: '500',
+                                    fontSize: '0.85rem',
+                                    cursor: estVerrouille ? 'not-allowed' : 'pointer',
+                                    backgroundColor: estVerrouille ? '#f1f3f4' : '#ffffff',
+                                    color: estVerrouille ? '#9aa0a6' : '#202124'
                                   }}
                                 >
-                                  ⋮
-                                </span>
+                                  Traître
+                                </button>
+                                
+                                <span style={{ cursor: 'pointer', fontWeight: 'bold' }} onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === idDemUnique ? null : idDemUnique); }}>⋮</span>
                               </div>
-
-                              {openDemandeMenuId === dem.id_demande && (
-                                <div className="dropdown-action-menu" style={{
-                                  position: 'absolute', right: '10px', top: '35px', backgroundColor: '#ffffff',
-                                  border: '1px solid #dadce0', borderRadius: '4px', boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                                  zIndex: 100, minWidth: '160px', padding: '4px 0'
-                                }}>
-                                  
-                                  <button
-                                    className="dropdown-action-item"
-                                    disabled={statutAffiche === 'VALIDE'} 
-                                    style={{
-                                      width: '100%', border: 'none', background: 'none', padding: '8px 12px',
-                                      textAlign: 'left', fontSize: '0.85rem', cursor: statutAffiche === 'VALIDE' ? 'not-allowed' : 'pointer',
-                                      color: statutAffiche === 'VALIDE' ? '#c0c0c0' : '#3c4043', opacity: statutAffiche === 'VALIDE' ? 0.5 : 1
-                                    }}
-                                    onClick={async () => {
-                                      if (window.confirm(`Voulez-vous annuler le traitement de la demande de ${nomAffiche} ?`)) {
-                                        try {
-                                          await API.put(`/demandes/annuler/${dem.id_demande}`);
-                                          await chargerDemandes();
-                                        } catch (err) {
-                                          alert(err.response?.data?.detail);
-                                        }
-                                      }
-                                      setOpenDemandeMenuId(null);
-                                    }}
-                                  >
-                                    ❌ Annuler la demande
-                                  </button>
-
-                                  <button
-                                    className="dropdown-action-item"
-                                    disabled={statutAffiche === 'EN_ATTENTE'} 
-                                    style={{
-                                      width: '100%', border: 'none', background: 'none', padding: '8px 12px',
-                                      textAlign: 'left', fontSize: '0.85rem', cursor: statutAffiche === 'EN_ATTENTE' ? 'not-allowed' : 'pointer',
-                                      color: statutAffiche === 'EN_ATTENTE' ? '#c0c0c0' : '#d93025', opacity: statutAffiche === 'EN_ATTENTE' ? 0.5 : 1
-                                    }}
-                                    onClick={async () => {
-                                      if (window.confirm(`⚠️ ATTENTION : Supprimer définitivement la demande de ${nomAffiche} du registre ?`)) {
-                                        try {
-                                          await API.delete(`/demandes/supprimer/${dem.id_demande}`);
-                                          await chargerDemandes();
-                                        } catch (err) {
-                                          alert(err.response?.data?.detail);
-                                        }
-                                      }
-                                      setOpenDemandeMenuId(null);
-                                    }}
-                                  >
-                                    🗑️ Supprimer
-                                  </button>
-                                </div>
-                              )}
                             </td>
+
                           </tr>
                         );
                       })
                     )}
                   </tbody>
+
+
                 </table>
               </div>
             </div>
           )}
-                   
+
+          {activeMenu === 'demandes_en_ligne' && (
+            <div>
+              <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span>🌐 Gestion des Demandes Déposées en Ligne (Portail Public)</span>
+                <button
+                  type="button"
+                  className="btn-back-dashboard"
+                  onClick={() => setActiveMenu('tableau_de_bord')}
+                  style={{ backgroundColor: '#f1f3f4', color: '#202124', border: '1px solid #dadce0', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                >
+                  ⬅️ Retour au Tableau de bord
+                </button>
+              </div>
+
+              {(demandesEnLigneCochees || []).length > 0 && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#e8f0fe', border: '1px solid #1a73e8', padding: '12px 20px', borderRadius: '6px', marginBottom: '15px', marginTop: '15px' }}>
+                  <span style={{ color: '#185abc', fontWeight: '600' }}>⚡ En masse : <strong>{demandesEnLigneCochees.length}</strong> dossier(s) en ligne prêt(s) pour traitement</span>
+                  <button
+                    type="button"
+                    onClick={handlePrendreEnChargeGroupes}
+                    style={{ backgroundColor: '#1a73e8', color: '#ffffff', border: 'none', borderRadius: '4px', padding: '8px 16px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.88rem' }}
+                  >
+                    📥 Prendre en charge les demandes sélectionnées
+                  </button>
+                </div>
+              )}
+
+              <div className="data-table-container" style={{ marginTop: '20px' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={(() => {
+                            const catalogue = typeof listeDemandes !== 'undefined' ? listeDemandes : (typeof demandes !== 'undefined' ? demandes : []);
+                            const enAttente = catalogue.filter(d => (d.statut || "").toUpperCase() === 'EN_ATTENTE');
+                            return enAttente.length > 0 && (demandesEnLigneCochees || []).length === enAttente.length;
+                          })()}
+                          onChange={(e) => {
+                            const catalogue = typeof listeDemandes !== 'undefined' ? listeDemandes : (typeof demandes !== 'undefined' ? demandes : []);
+                            if (e.target.checked) {
+                              const idsEnAttente = catalogue
+                                .filter(d => (d.statut || "").toUpperCase() === 'EN_ATTENTE')
+                                .map(d => d.id_demande ?? d.id);
+                              setDemandesEnLigneCochees(idsEnAttente);
+                            } else {
+                              setDemandesEnLigneCochees([]);
+                            }
+                          }}
+                          style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                        />
+                      </th>
+                      <th>Matricule</th>
+                      <th>Nom & Prénoms</th>
+                      <th>Type de Document</th>
+                      <th>Établissement/Centre</th>
+                      <th>Session</th>
+                      <th>Date d'Envoi</th>
+                      <th>Statut Portail</th>
+                      <th style={{ textAlign: 'center' }}>Action Guichet</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(() => {
+                      const catalogue = typeof listeDemandes !== 'undefined' ? listeDemandes : (typeof demandes !== 'undefined' ? demandes : []);
+                      const demandesEnLigne = catalogue.filter(d => (d.statut || "").toUpperCase() === 'EN_ATTENTE');
+
+                      if (demandesEnLigne.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan="9" className="no-entries" style={{ padding: '3rem', textAlign: 'center', color: '#5f6368' }}>
+                              📭 Aucune nouvelle demande en ligne à prendre en charge pour le moment.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return demandesEnLigne.map((dem, index) => {
+                        const idDemUnique = dem.id_demande ?? dem.id ?? index;
+                        const isCochee = (demandesEnLigneCochees || []).includes(idDemUnique);
+
+                        return (
+                          <tr key={idDemUnique} style={{ backgroundColor: isCochee ? '#f8f9fa' : 'transparent' }}>
+                            
+                            <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                              <input
+                                type="checkbox"
+                                checked={isCochee}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setDemandesEnLigneCochees(prev => [...(prev || []), idDemUnique]);
+                                  } else {
+                                    setDemandesEnLigneCochees(prev => (prev || []).filter(id => id !== idDemUnique));
+                                  }
+                                }}
+                                style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                              />
+                            </td>
+
+                            <td><strong>{dem.im_apprenant}</strong></td>
+                            <td style={{ fontWeight: '500' }}>{dem.nom_complet}</td>
+                            <td><span className="type-badge" style={{ backgroundColor: '#e8f0fe', color: '#1a73e8', padding: '3px 6px', borderRadius: '4px', fontSize: '0.82rem', fontWeight: '600' }}>{dem.type_document}</span></td>
+                            
+                            <td>
+                              <strong>
+                                {(() => {
+                                  const eleveProfil = (apprenants || []).find(app => String(app.im_apprenant).trim() === String(dem.im_apprenant).trim());
+                                  if (eleveProfil && eleveProfil.etablissement_id) {
+                                    const etabTrouve = (listeEtablissements || etablissementsOptions || []).find(e => (e.id_etablissement ?? e.id ?? e.id_centre)?.toString() === eleveProfil.etablissement_id?.toString());
+                                    if (etabTrouve) return (etabTrouve.nom_etablissement || etabTrouve.nom).toUpperCase();
+                                  }
+                                  return dem.centre_examen ? dem.centre_examen.toUpperCase() : "LTP AMBOSITRA";
+                                })()}
+                              </strong>
+                            </td>
+
+                            <td>{dem.session || "N/A"}</td>
+                            <td>{dem.date_depot || "14/10/2026"}</td>
+                            <td>
+                              <span className="status-badge" style={{ backgroundColor: '#fef7e0', color: '#b06000', padding: '4px 8px', borderRadius: '4px', fontWeight: '600', fontSize: '0.85rem' }}>
+                                ⏳ En attente
+                              </span>
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                className="btn-valider-import"
+                                style={{ backgroundColor: '#1a73e8', color: '#ffffff', border: 'none', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontWeight: 'bold', fontSize: '0.85rem' }}
+                                onClick={() => {
+                                  if (typeof setSelectedDemande === 'function') setSelectedDemande(dem);
+                                  if (typeof setShowTraiteModal === 'function') setShowTraiteModal(true);
+                                }}
+                              >
+                                📥 Prendre en charge
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {activeMenu === 'simulateur_etudiant' && (
+            <PortailPublic 
+              listeEtablissements={listeEtablissements} 
+              etablissementsOptions={etablissementsOptions} 
+            />
+          )}
+
+
           {activeMenu === 'traitement_attestation' && (
             <div>
               <div className="section-title">Traitement des Attestations Provisoires de Réussite</div>                           
@@ -2099,22 +2534,17 @@ const chargerDemandes = async () => {
                   
                   <tbody>
                     {(() => {
-                      const fluxFiltre = typeof attestationsTraiteesFiltrees !== 'undefined' ? attestationsTraiteesFiltrees : [];
+                        const fluxFiltreReal = (typeof attestationsTraiteesFiltrees !== 'undefined' ? attestationsTraiteesFiltrees : [])
+                          .filter(d => (d.type_document || "").toUpperCase() === 'ATTESTATION');
 
-                      if (fluxFiltre.length === 0) {
-                        return (
-                          <tr>
-                            <td colSpan="8" className="no-entries" style={{ padding: '2rem', textAlign: 'center', color: '#5f6368' }}>
-                              🔍 Aucun dossier dans ce registre ne correspond à vos critères de recherche.
-                            </td>
-                          </tr>
-                        );
-                      }
+                        if (fluxFiltreReal.length === 0) {
+                          return <tr><td colSpan="8" className="no-entries" style={{ padding: '2rem', textAlign: 'center', color: '#5f6368' }}>🔍 Aucun dossier d'attestation ne correspond à vos critères de recherche.</td></tr>;
+                        }
 
-                      return fluxFiltre.map((dem, index) => {
-                        const statutAffiche = (dem.statut || "EN_COURS").toString().toUpperCase();
-                        const idDemUnique = dem.id_demande ?? dem.id ?? index;
-                        const isDemCochee = typeof demandesTraitementCochees !== 'undefined' && (demandesTraitementCochees || []).includes(idDemUnique);
+                        return fluxFiltreReal.map((dem, index) => {
+                          const statutAffiche = (dem.statut || "EN_COURS").toString().toUpperCase();
+                          const idDemUnique = dem.id_demande ?? dem.id ?? index;
+                          const isDemCochee = typeof demandesTraitementCochees !== 'undefined' && (demandesTraitementCochees || []).includes(idDemUnique);
 
                         return (
                           <tr key={idDemUnique} style={{ backgroundColor: isDemCochee ? '#f8f9fa' : 'transparent' }}>
@@ -2238,28 +2668,222 @@ const chargerDemandes = async () => {
             </div>
           )}
         
-          {activeMenu === 'traitement_diplome' && (
+         {activeMenu === 'traitement_diplome' && (
             <div>
               <div className="section-title">Homologation et Signature des Diplômes Nationaux</div>
               <div className="data-table-container">
+                <div className="search-filter-bar" style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '20px', alignItems: 'center', backgroundColor: '#ffffff', padding: '15px', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  <input
+                    type="text"
+                    className="search-input"
+                    placeholder="🔍 Rechercher un diplôme par nom ou matricule..."
+                    value={searchTraitement}
+                    onChange={(e) => setSearchTraitement(e.target.value)}
+                    style={{ flex: '1', minWidth: '200px', height: '38px', padding: '0 12px', borderRadius: '6px', border: '1px solid #dadce0', fontSize: '0.90rem' }}
+                  />
+
+                  <select
+                    className="filter-select"
+                    value={sessionTraitement}
+                    onChange={(e) => setSessionTraitement(e.target.value)}
+                    style={{ height: '38px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dadce0', backgroundColor: '#ffffff', cursor: 'pointer', fontSize: '0.88rem' }}
+                  >
+                    <option value="Tous"> Session: Toutes</option>
+                    {[...new Set(catalogueGlobalDemandes.map(d => d.session).filter(Boolean))].sort((a, b) => b - a).map(annee => (
+                      <option key={annee} value={annee}>{annee}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="filter-select"
+                    value={filterDocTraitement}
+                    onChange={(e) => setFilterDocTraitement(e.target.value)}
+                    style={{ height: '38px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dadce0', backgroundColor: '#ffffff', cursor: 'pointer', fontSize: '0.88rem' }}
+                  >
+                    <option value="Tous"> Document: Tous</option>
+                    <option value="ATTESTATION">Attestation</option>
+                    <option value="DIPLOME">Diplôme</option>
+                  </select>
+
+                  <select
+                    className="filter-select"
+                    value={filterCentreTraitement}
+                    onChange={(e) => setFilterCentreTraitement(e.target.value)}
+                    style={{ height: '38px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dadce0', backgroundColor: '#ffffff', cursor: 'pointer', fontSize: '0.88rem', maxWidth: '200px' }}
+                  >
+                    <option value="Tous"> Centre: Tous</option>
+                    {[...new Set(catalogueGlobalDemandes.map(d => d.centre_examen || "LTP AMBOSITRA").filter(Boolean))].sort().map(centre => (
+                      <option key={centre} value={centre}>{centre.toUpperCase()}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    className="filter-select"
+                    value={filterStatutTraitement}
+                    onChange={(e) => setFilterStatutTraitement(e.target.value)}
+                    style={{ height: '38px', padding: '0 10px', borderRadius: '6px', border: '1px solid #dadce0', backgroundColor: '#ffffff', cursor: 'pointer', fontSize: '0.88rem' }}
+                  >
+                    <option value="Tous"> Statut: Tous</option>
+                    <option value="EN_COURS"> En cours</option>
+                    <option value="TERMINER"> Obtenu</option>
+                  </select>
+                </div>
+
+                    
+                  {(diplomesCoches || []).length > 0 && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#e8f0fe', border: '1px solid #1a73e8', padding: '12px 20px', borderRadius: '6px', marginBottom: '15px' }}>
+                      <span style={{ color: '#185abc', fontWeight: '600' }}>⚡ En masse : <strong>{diplomesCoches.length}</strong> diplôme(s) prêt(s) pour l'exportation</span>
+                      <button
+                        type="button"
+                        onClick={handleExporterGroupesDiplomesExcel}
+                        style={{ backgroundColor: '#1e7e34', color: '#ffffff', border: 'none', borderRadius: '4px', padding: '8px 16px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.88rem', display: 'flex', alignItems: 'center', gap: '6px' }}
+                      >
+                         Exporter les demandes en Excel
+                      </button>
+                    </div>
+                  )}
+
+
                 <table className="data-table">
                   <thead>
-                    <tr><th>Matrice</th><th>Nom complet</th><th>Document</th><th>Centre d'Examen</th><th>Date Dépôt</th><th>Statut</th><th>Décision Final</th></tr>
+                    <tr>
+                      <th style={{ width: '40px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={
+                            (() => {
+                              const lignesSelectionnables = (diplomesTraitesFiltres || [])
+                                .filter(d => (d.statut || "").toUpperCase() !== 'OBTENU');
+                              
+                              return lignesSelectionnables.length > 0 && 
+                                (diplomesCoches || []).length === lignesSelectionnables.length;
+                            })()
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const idsSelectionnables = (diplomesTraitesFiltres || [])
+                                .filter(d => (d.statut || "").toUpperCase() !== 'OBTENU')
+                                .map(d => d.id_demande ?? d.id);
+                              setDiplomesCoches(idsSelectionnables);
+                            } else {
+                              setDiplomesCoches([]);
+                            }
+                          }}
+                          style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                        />
+                      </th>
+                      <th>Matricule (IM)</th>
+                      <th>Nom & Prénoms</th>
+                      <th>Date & Lieu Naiss.</th>
+                      <th>Diplôme & Session</th>
+                      <th>Établissement & Secteur</th>
+                      <th>Filière & Métier</th>
+                      <th>Mention</th>
+                      <th>Statut</th>
+                    </tr>
                   </thead>
+                  
                   <tbody>
-                    {demandes.filter(d => (d.statut || "").toUpperCase() === 'EN_COURS' && (d.type_document || "").toUpperCase() === 'DIPLOME').length === 0 ? (
-                      <tr><td colSpan="7" className="no-entries">🎓 Aucun diplôme national en cours de traitement.</td></tr>
-                    ) : (
-                      demandes.filter(d => (d.statut || "").toUpperCase() === 'EN_COURS' && (d.type_document || "").toUpperCase() === 'DIPLOME').map((dem, index) => (
-                        <tr key={dem.id_demande || index}>
-                          <td><strong>{dem.im_apprenant}</strong></td><td>{dem.nom_complet}</td><td>{dem.type_document}</td><td>{dem.centre_examen}</td><td>{dem.date_depot}</td>
-                          <td><span className="status-badge" style={{ padding: '4px 8px', borderRadius: '4px', backgroundColor: '#e8f0fe', color: '#1a73e8', fontWeight: 600 }}>En traitement</span></td>
-                          <td><button className="btn-action-top" style={{ padding: '6px 14px', height: 'auto', backgroundColor: '#137333', cursor: 'pointer' }} onClick={() => handleSignerDocumentDefinitif(dem.id_demande)}>✒️ Signer</button></td>
-                        </tr>
-                      ))
-                    )}
+                    {(() => {
+                      const fluxFiltre = typeof diplomesTraitesFiltres !== 'undefined' ? diplomesTraitesFiltres : [];
+
+                      if (fluxFiltre.length === 0) {
+                        return <tr><td colSpan="9" className="no-entries" style={{ padding: '2rem', textAlign: 'center', color: '#5f6368' }}>🔍 Aucun diplôme ne correspond à vos critères de recherche.</td></tr>;
+                      }
+
+                      return fluxFiltre.map((dem, index) => {
+                        const statutAffiche = (dem.statut || "EN_COURS").toString().toUpperCase();
+                        const idDemUnique = dem.id_demande ?? dem.id ?? index;
+                        const isDemCochee = (diplomesCoches || []).includes(idDemUnique);
+
+                        const cibleApprenant = (apprenants || []).find(app => 
+                          String(app.im_apprenant).trim() === String(dem.im_apprenant).trim()
+                        );
+
+                        const nomSec = (listeSecteurs || []).find(s => (s.id_secteur || s.id)?.toString() === cibleApprenant?.secteur_id?.toString())?.nom_secteur || "GENIE CIVIL";
+                        const nomFil = (listeFilieres || []).find(f => (f.id_filiere || f.id)?.toString() === cibleApprenant?.filiere_id?.toString())?.nom_filiere || "BATIMENT ET TRAVAUX PUBLICS";
+                        const nomMet = (listeMetiers || []).find(m => (m.id_metier || m.id)?.toString() === cibleApprenant?.metier_id?.toString())?.nom_metier || "CHEF D'EQUIPE DE CHANTIER";
+                        const etabTrouve = (listeEtablissements || []).find(e => (e.id_etablissement ?? e.id ?? e.id_centre)?.toString() === cibleApprenant?.etablissement_id?.toString());
+                        const nomEtab = etabTrouve ? (etabTrouve.nom_etablissement || etabTrouve.nom) : (dem.centre_examen || "LTP AMBOSITRA");
+
+                        let dateNaissance = "23/05/2002";
+                        if (cibleApprenant?.date_naiss) {
+                          dateNaissance = cibleApprenant.date_naiss.includes('-') 
+                            ? new Date(cibleApprenant.date_naiss).toLocaleDateString('fr-FR') 
+                            : cibleApprenant.date_naiss;
+                        }
+
+                        return (
+                          <tr key={idDemUnique} style={{ backgroundColor: isDemCochee ? '#f8f9fa' : 'transparent' }}>
+                            <td style={{ textAlign: 'center' }}>
+                              <input
+                                type="checkbox"
+                                disabled={statutAffiche === 'OBTENU'} 
+                                checked={(diplomesCoches || []).includes(idDemUnique)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setDiplomesCoches(prev => [...(prev || []), idDemUnique]);
+                                  } else {
+                                    setDiplomesCoches(prev => (prev || []).filter(id => id !== idDemUnique));
+                                  }
+                                }}
+                                style={{ 
+                                  cursor: statutAffiche === 'OBTENU' ? 'not-allowed' : 'pointer',
+                                  transform: 'scale(1.1)' 
+                                }}
+                              />
+                            </td>
+                            <td><strong>{dem.im_apprenant}</strong></td>
+                            <td style={{ fontWeight: '500' }}>{cibleApprenant?.nom_apprenant || dem.nom_complet} {cibleApprenant?.prenom_apprenant || ""}</td>
+                            <td>{dateNaissance} à <span style={{ textTransform: 'uppercase', fontSize: '0.82rem' }}>{cibleApprenant?.lieu_naiss || "Ambositra"}</span></td>
+                            <td><span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{cibleApprenant?.examen_id || "B.E.P"}</span> ({cibleApprenant?.session || dem.session || "N/A"})</td>
+                            <td><strong>{nomEtab}</strong><br/><small style={{ color: '#5f6368', fontStyle: 'italic' }}>{nomSec}</small></td>
+                            <td><strong style={{ color: '#3c4043' }}>{nomFil}</strong><br/><small style={{ color: '#5f6368', fontStyle: 'italic' }}>{nomMet}</small></td>
+                            <td><em style={{ color: 'var(--primary-color)', fontWeight: 600 }}>{cibleApprenant?.mention || 'Passable'}</em></td>                      
+                            <td style={{ textAlign: 'center', verticalAlign: 'middle' }}>
+                              {statutAffiche === 'OBTENU' && (
+                                <span 
+                                  className="status-badge obtained" 
+                                  style={{ padding: '6px 12px', borderRadius: '4px', fontWeight: '700', fontSize: '0.85rem', backgroundColor: '#e6f4ea', color: '#137333', border: '1px solid #ceead6', display: 'inline-block' }}
+                                >
+                                  🎓 Obtenu
+                                </span>
+                              )}
+
+                              {statutAffiche === 'EN_COURS' && (
+                                <span 
+                                  className="status-badge clickable-en-cours" 
+                                  onClick={() => handleBasculerStatutObtenu(dem)} 
+                                  title="Cliquez pour marquer ce diplôme comme Obtenu"
+                                  style={{ 
+                                    padding: '6px 12px', borderRadius: '4px', fontWeight: '700', fontSize: '0.85rem',
+                                    backgroundColor: '#fef7e0', color: '#b06000', border: '1px solid #fce8b2',
+                                    cursor: 'pointer', display: 'inline-block', transition: 'all 0.2s ease',
+                                    boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+                                  }}
+                                  onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fce8b2'; }}
+                                  onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fef7e0'; }}
+                                >
+                                  ⏳ En cours
+                                </span>
+                              )}
+
+                              {(statutAffiche === 'EN_TRAITEMENT' || statutAffiche === 'EN_ATTENTE' || (statutAffiche !== 'EN_COURS' && statutAffiche !== 'OBTENU')) && (
+                                <span 
+                                  className="status-badge in-treatment" 
+                                  style={{ padding: '6px 12px', borderRadius: '4px', fontWeight: '700', fontSize: '0.85rem', backgroundColor: '#e8f0fe', color: '#1a73e8', border: '1px solid #d2e3fc', display: 'inline-block' }}
+                                >
+                                  ⏳ En traitement
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      });
+                    })()}
                   </tbody>
                 </table>
+
               </div>
             </div>
           )}
@@ -3978,7 +4602,7 @@ const chargerDemandes = async () => {
                     {(demandes || []).length === 0 ? (
                       <tr>
                         <td colSpan="7" className="no-entries" style={{ padding: '2rem' }}>
-                          📭 Aucune démarche en ligne en attente dans le système central.
+                           Aucune démarche en ligne en attente dans le système central.
                         </td>
                       </tr>
                     ) : (
