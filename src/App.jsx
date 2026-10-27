@@ -12,24 +12,19 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/" element={<PortailPublic />} />
 
-        <Route path="/login" element={<Login />} />
-
-        <Route path="/fiche-pv-examen" element={<SaisieCentreTerrain />} />
-
+        <Route path="/connexion-admin" element={<Login />} />
         <Route path="/dashboard" element={<DashboardAdmin />} />
-
-        <Route path="/saisie-notes" element={<SaisieNotes />} />
-
         <Route path="/demande-diplome" element={<DemandeClient />} />
 
+        <Route path="/fiche-pv-examen" element={<SaisieCentreTerrain />} />
+        <Route path="/saisie-notes" element={<SaisieNotes />} />
         <Route path="/portail-terrain" element={<AuthChefCentre />} />
 
-        <Route path="/demande-en-ligne" element={<PortailPublic />} />
-
-
-        <Route path="*" element={<div style={{ padding: '2rem', fontFamily: 'sans-serif', textTransform: 'uppercase', color: 'red' }}>Page introuvable</div>} />
+        <Route path="/login" element={<Navigate to="/" replace />} />
+        
+        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>
   );

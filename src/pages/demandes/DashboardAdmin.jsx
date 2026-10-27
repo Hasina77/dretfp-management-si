@@ -232,11 +232,31 @@ const DashboardAdmin = () => {
     }
   }, []); 
 
-
-    const exporterVersExcel = () => {
+  const exporterVersExcel = () => {
     if (!apprenantsFiltres || apprenantsFiltres.length === 0) {
       alert("⚠️ Aucun apprenant à exporter pour les critères sélectionnés.");
       return;
+    }
+
+    for (const item of apprenantsFiltres) {
+      const matriculeAVerifier = String(item.im_apprenant || "").trim().toUpperCase();
+      
+      let elementValide = true;
+      if (matriculeAVerifier.length !== 12) {
+        elementValide = false;
+      } else if (matriculeAVerifier.charAt(3) !== '-' || matriculeAVerifier.charAt(8) !== '-') {
+        elementValide = false;
+      } else {
+        const milieu = matriculeAVerifier.substring(4, 8);
+        if (isNaN(milieu) || milieu.includes(' ')) {
+          elementValide = false;
+        }
+      }
+
+      if (!elementValide) {
+        alert(`🚨 EXPORTATION BLOQUÉE (MATRICULE INCORRECT) :\n\nL'apprenant "${item.nom_apprenant} ${item.prenom_apprenant || ''}" possède un numéro matricule non conforme en base de données : "${matriculeAVerifier || 'VIDE'}".\n\nStructure exigée : XXX-0000-XXX (Les 4 caractères du centre doivent être STRICTEMENT des CHIFFRES).\n\nVeuillez corriger ou mettre à jour la fiche de cet élève avant de pouvoir exporter le registre.`);
+        return;
+      }
     }
 
     const donneesExcel = apprenantsFiltres.map((item, index) => {
@@ -264,26 +284,20 @@ const DashboardAdmin = () => {
         }
       }
 
-      let statutTexte = "Aucune démarche";
-      const statutBrut = String(item.progression || "").toUpperCase();
-      if (statutBrut === 'TERMINER') statutTexte = "Terminé / Signé";
-      else if (statutBrut === 'EN_COURS') statutTexte = "En traitement";
-      else if (statutBrut === 'EN_ATTENTE') statutTexte = "En attente";
-
+      
       return {
-        'Matricule (IM)': item.im_apprenant,
-        'Nom': String(item.nom_apprenant || "").toUpperCase(),
-        'Prénoms': item.prenom_apprenant || "",
+        'Matricule (IM)': String(item.im_apprenant).trim().toUpperCase(),
+        'Nom': String(item.nom_apprenant || "").toUpperCase().trim(),
+        'Prénoms': String(item.prenom_apprenant || "").trim(),
         'Date de Naissance': datePropre,
-        'Lieu de Naissance': String(item.lieu_naiss || "").toUpperCase(),
-        'Examen': String(item.examen_id || "").toUpperCase(),
+        'Lieu de Naissance': String(item.lieu_naiss || "").toUpperCase().trim(),
+        'Examen': String(item.examen_id || "").toUpperCase().trim(),
         'Session': item.session || 2026,
         'Mention': item.mention || "Passable",
         'Établissement': nomEtab, 
         'Secteur': nomSec,        
         'Filière': nomFil,         
-        'Métier': nomMet,           
-        'Statut Parcours': statutTexte
+        'Métier': nomMet
       };
     });
 
@@ -295,9 +309,8 @@ const DashboardAdmin = () => {
     XLSX.writeFile(classeur, `Registre_Apprenants_DRETFP_${anneeFichier}.xlsx`);
   };
 
-
-    const importerDepuisExcel = (e) => {
-    const file = e.target.files[0]; 
+  const importerDepuisExcel = (e) => {
+    const file = e.target.files[0];  
     if (!file) return;
 
     const reader = new FileReader();
@@ -305,7 +318,7 @@ const DashboardAdmin = () => {
       try {
         const data = new Uint8Array(event.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-        const nombreFeuille = workbook.SheetNames[0];
+        const nombreFeuille = workbook.SheetNames[0]; 
         const feuille = workbook.Sheets[nombreFeuille];
         
         const listeImportee = XLSX.utils.sheet_to_json(feuille);
@@ -315,65 +328,115 @@ const DashboardAdmin = () => {
           return;
         }
 
-        const apprenantsFormates = listeImportee.map((row) => {
+        // 🚨 1. ANALYSE ET VALIDATION DE LA STRUCTURE DES MATRICULES
+        for (let i = 0; i < listeImportee.length; i++) {
+          const row = listeImportee[i];
+          const matriculeBrut = String(row['Matricule (IM)'] || row['im_apprenant'] || row['Matricule'] || row['IM'] || "").trim().toUpperCase();
           
-          const etabTexte = row['Établissement'] || row['etablissement_id'] || "";
-          const secteurTexte = row['Secteur'] || row['secteur_id'] || "";
-          const filiereTexte = row['Filière'] || row['filiere_id'] || "";
-          const metierTexte = row['Métier'] || row['metier_id'] || "";
+          let ligneValide = true;
+          if (matriculeBrut.length !== 12) {
+            ligneValide = false;
+          } else if (matriculeBrut.charAt(3) !== '-' || matriculeBrut.charAt(8) !== '-') {
+            ligneValide = false;
+          } else {
+            const milieu = matriculeBrut.substring(4, 8);
+            if (isNaN(milieu) || milieu.includes(' ')) {
+              ligneValide = false;
+            }
+          }
+
+          if (!ligneValide) {
+            alert(`🚨 REJET STRICT DE L'IMPORTATION EXCEL :\n\nÀ la ligne numéro ${i + 2} du fichier, le numéro matricule "${matriculeBrut || 'VIDE'}" n'est pas conforme.\n\nStructure obligatoire exigée : XXX-0000-XXX (Ex: 1HG-0001-DRT).`);
+            e.target.value = "";
+            return;
+          }
+        }
+
+        const apprenantsFormates = listeImportee.map((row) => {
+          const etabTexte = String(row['Établissement'] || row['etablissement_id'] || "").trim().toLowerCase();
+          const secteurTexte = String(row['Secteur'] || row['secteur_id'] || "").trim().toLowerCase();
+          const filiereTexte = String(row['Filière'] || row['filiere_id'] || "").trim().toLowerCase();
+          const metierTexte = String(row['Métier'] || row['metier_id'] || "").trim().toLowerCase();
+          const examenTexte = String(row['Examen'] || row['examen_id'] || "").trim().toLowerCase();
 
           const etabTrouve = (listeEtablissements || []).find(e => 
-            (e.nom_etablissement || e.nom)?.toString().trim().toLowerCase() === etabTexte.toString().trim().toLowerCase()
+            String(e.nom_etablissement || e.nom || "").trim().toLowerCase() === etabTexte
           );
           const secteurTrouve = (listeSecteurs || []).find(s => 
-            (s.nom_secteur || s.nom)?.toString().trim().toLowerCase() === secteurTexte.toString().trim().toLowerCase()
+            String(s.nom_secteur || s.nom || "").trim().toLowerCase() === secteurTexte
           );
           const filiereTrouve = (listeFilieres || []).find(f => 
-            (f.nom_filiere || f.nom)?.toString().trim().toLowerCase() === filiereTexte.toString().trim().toLowerCase()
+            String(f.nom_filiere || f.nom || "").trim().toLowerCase() === filiereTexte
           );
           const metierTrouve = (listeMetiers || []).find(m => 
-            (m.nom_metier || m.nom)?.toString().trim().toLowerCase() === metierTexte.toString().trim().toLowerCase()
+            String(m.nom_metier || m.nom || "").trim().toLowerCase() === metierTexte
+          );
+          const examenTrouve = (listeExamens || []).find(ex => 
+            String(ex.nom_examen || ex.nom || ex.id_examen || "").trim().toLowerCase() === examenTexte
           );
 
+          // Extraction des clés primaires de sécurité (secours automatique sur l'ID 1 en cas de problème)
+          const finalEtabId = etabTrouve ? (etabTrouve.id_etablissement ?? etabTrouve.id ?? etabTrouve.id_centre) : 1;
+          const finalSecteurId = secteurTrouve ? (secteurTrouve.id_secteur ?? secteurTrouve.id) : 1;
+          const finalFiliereId = filiereTrouve ? (filiereTrouve.id_filiere ?? filiereTrouve.id) : 1;
+          const finalMetierId = metierTrouve ? (metierTrouve.id_metier ?? metierTrouve.id) : 1;
+          const finalExamenId = examenTrouve ? (examenTrouve.id_examen ?? examenTrouve.id) : 1;
+
           return {
-            im_apprenant: String(row['Matricule (IM)'] || row['im_apprenant'] || "").trim(),
+            im_apprenant: String(row['Matricule (IM)'] || row['im_apprenant'] || row['Matricule'] || row['IM'] || "").trim().toUpperCase(),
             nom_apprenant: String(row['Nom'] || row['nom_apprenant'] || 'INCONNU').toUpperCase().trim(),
             prenom_apprenant: String(row['Prénoms'] || row['prenom_apprenant'] || "").trim(),
             date_naiss: String(row['Date de Naissance'] || row['date_naiss'] || '2000-01-01').trim(),
             lieu_naiss: String(row['Lieu de Naissance'] || row['lieu_naiss'] || 'INCONNU').toUpperCase().trim(),
-            examen_id: String(row['Examen'] || row['examen_id'] || 'CAP').toUpperCase().trim(),
+            
+            // 🚨 LE CORRECTIF ABSOLU DU CRASH : examen_id doit être une CHAINE DE CARACTÈRES (STRING)
+            examen_id: String(finalExamenId),
+            
+            // Les autres champs restent des nombres ENTIERS (INTEGER) conformes aux clés étrangères MySQL
+            etablissement_id: parseInt(finalEtabId, 10) || 1,
+            secteur_id: parseInt(finalSecteurId, 10) || 1,
+            filiere_id: parseInt(finalFiliereId, 10) || 1,
+            metier_id: parseInt(finalMetierId, 10) || 1,
+            
             session: parseInt(row['Session'] || row['session'], 10) || 2026,
             mention: String(row['Mention'] || row['mention'] || 'Passable').trim(),           
-            etablissement_id: etabTrouve ? (etabTrouve.id_etablissement || etabTrouve.id) : 1,
-            secteur_id: secteurTrouve ? (secteurTrouve.id_secteur || secteurTrouve.id) : 1,
-            filiere_id: filiereTrouve ? (filiereTrouve.id_filiere || filiereTrouve.id) : 1,
-            metier_id: metierTrouve ? (metierTrouve.id_metier || metierTrouve.id) : 1,
-            
             progression: String(row['Statut Parcours'] || row['Statut Demande'] || row['progression'] || 'AUCUNE_DEMANDE').trim()
           };
         });
 
+
+        // 🚨 3. ZONE DE TRANSMISSION ET SYNCHRONISATION LOCALHOST
+        console.log("📦 [DONNÉES ENVOYÉES À FASTAPI] :", { apprenants: apprenantsFormates });
+
         try {
-          await API.post('http://localhost:8000/api/apprenants/import-bulk', { apprenants: apprenantsFormates });
-          alert(`✅ Importation en masse réussie ! ${apprenantsFormates.length} apprenants ont été synchronisés et enregistrés dans MySQL.`);
+          const response = await API.post('http://localhost:8000/api/apprenants/import-bulk', { apprenants: apprenantsFormates });
+          
+          alert(`✅ Importation en masse réussie ! ${apprenantsFormates.length} apprenants ont été synchronisés et enregistrés avec succès dans MySQL.`);
           
           if (typeof chargerApprenants === 'function') {
             await chargerApprenants();
           }
         } catch (apiErr) {
-          console.error(apiErr);
-          alert("⚠️ Échec d'enregistrement de masse : Le serveur FastAPI ou la base de données WampServer ne répond pas.");
+          console.error("❌ Détails de l'erreur réseau :", apiErr);
+          if (apiErr.response && apiErr.response.data && apiErr.response.data.detail) {
+            console.log("🚨 [FASTAPI EXPLICATION CRASH] :", apiErr.response.data.detail);
+            alert(`⚠️ Rejet FastAPI (422) :\n\n${JSON.stringify(apiErr.response.data.detail)}`);
+          } else {
+            alert("⚠️ Échec d'enregistrement de masse : Le serveur FastAPI local sur le port 8000 ne répond pas.");
+          }
         }
+
 
       } catch (parseErr) {
         console.error(parseErr);
-        alert("⚠️ Le format ou l'arborescence structurelle du fichier Excel n'est pas lisible par le composant.");
+        alert("⚠️ Le format ou l'arborescence du fichier Excel n'est pas lisible.");
       }
     };
     reader.readAsArrayBuffer(file);
     
     e.target.value = "";
   };
+
 
 
   const chargerApprenants = async () => {
@@ -1220,12 +1283,17 @@ const chargerDemandes = async () => {
       console.error("⚠️ Impossible de charger le répertoire des examens :", err);
     }
   };
+ 
+  useEffect(() => {
+    chargerExamens();
+  }, []); 
 
   useEffect(() => {
-    if (activeMenu === 'liste_examens') {
+    if (activeMenu === 'liste_examens' || activeMenu === 'liste_apprenants') {
       chargerExamens();
     }
-  }, [activeMenu]); 
+  }, [activeMenu]);
+
 
  
   const handleActionGroupesDemandes = async (typeDoc) => {
@@ -1555,6 +1623,8 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
       setActiveMenu('simulateur_etudiant');
     }
   }, []);
+
+  
 
 
 
@@ -1915,8 +1985,37 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                             <td><strong>{item.im_apprenant || "N/A"}</strong></td>
                             <td style={{ fontWeight: '500' }}>{item.nom_apprenant} {item.prenom_apprenant || ""}</td>
                             <td>{dateAffichee} à <span style={{ textTransform: 'uppercase', fontSize: '0.85rem' }}>{item.lieu_naiss || "Inconnu"}</span></td>
-                            <td><span style={{ textTransform: 'uppercase', fontWeight: 600 }}>{item.examen_id || "B.E.P"}</span> ({item.session || "N/A"})</td>
-                            
+                           
+                            <td style={{ padding: '12px', fontSize: '0.88rem' }}>
+                              <div style={{ fontWeight: 'bold', color: '#4b4f55' }}>
+                                {
+                                  (() => {
+                                    const idBrut = item.examen_id?.toString();
+                                    
+                                    const exTrouve = (listeExamens || []).find(ex => {
+                                      const idExamenModelle = ex.id_examen ?? ex.id ?? ex.examen_id ?? ex.id_ex;
+                                      return idExamenModelle?.toString() === idBrut;
+                                    });
+                                    
+                                    if (exTrouve) {
+                                      const nomTexte = exTrouve.nom_examen ?? exTrouve.nom ?? exTrouve.libelle_examen ?? exTrouve.designation ?? exTrouve.titre;
+                                      if (nomTexte) return nomTexte;
+                                    }
+                                    
+                                    if (idBrut === '1') return 'CAP';
+                                    if (idBrut === '2') return 'BEP';
+                                    if (idBrut === '3') return 'BT';
+                                    
+                                    return idBrut || 'CAP';
+                                  })()
+                                }
+                              </div>
+                              <div style={{ fontSize: '0.78rem', color: '#5f6368' }}>
+                                ({item.session || '2026'})
+                              </div>
+                            </td>
+
+
                             <td>
                               <strong>{nomEtab}</strong>
                               <br/>
@@ -3707,7 +3806,7 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                 </div>
                 <div className="modal-field">
                   <label>Lieu de Naissance</label>
-                  <input type="text" id="add_lieu_naiss" placeholder="Ex: FIANARANTSOA" required />
+                  <input type="text" id="add_lieu_naiss" placeholder="Ex: AMBOSITRA" required />
                 </div>
 
                 <div className="modal-field" style={{ marginBottom: '1rem' }}>
@@ -3834,12 +3933,13 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
             
             <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
               <button className="btn-table-action" onClick={() => setModalMode('')}>Annuler</button>
-              <button 
+              
+             <button 
                 className="btn-action-top" 
                 style={{ backgroundColor: '#1a73e8' }}
-                                onClick={async () => {
+                onClick={async () => {
                   try {
-                    const imSaisi = document.getElementById('add_im')?.value?.trim();
+                    const imSaisi = document.getElementById('add_im')?.value?.trim()?.toUpperCase();
                     const nomSaisi = document.getElementById('add_nom')?.value?.trim();
                     const prenomSaisi = document.getElementById('add_prenom')?.value?.trim() || "";
                     const dateNaissSaisie = document.getElementById('add_date_naiss')?.value;
@@ -3857,23 +3957,42 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                       return;
                     }
 
+                    const imPropre = String(imSaisi).trim();
+                    let structureValide = true;
+
+                    if (imPropre.length !== 12) {
+                      structureValide = false;
+                    }
+                    else if (imPropre.charAt(3) !== '-' || imPropre.charAt(8) !== '-') {
+                      structureValide = false;
+                    }
+                    else {
+                      const caracteresDuMilieu = imPropre.substring(4, 8); 
+                      if (isNaN(caracteresDuMilieu) || caracteresDuMilieu.includes(' ')) {
+                        structureValide = false;
+                      }
+                    }
+
+                    if (!structureValide) {
+                      alert(`🚨 FORMAT DE MATRICULE INVALIDE :\n\nLe matricule saisi "${imPropre}" ne respecte pas la structure réglementaire.\n\nStructure exigée : XXX-0000-XXX (Ex: 1HG-0001-DRT)\n👉 Les 4 caractères du milieu doivent être STRICTEMENT des CHIFFRES.\n👉 Longueur exacte : 12 caractères.`);
+                      return; 
+                    }
+
                     const nouvelApprenant = {
-                      im_apprenant: String(imSaisi),
+                      im_apprenant: String(imPropre),
                       nom_apprenant: String(nomSaisi).toUpperCase(),
                       prenom_apprenant: String(prenomSaisi),
                       date_naiss: String(dateNaissSaisie),
-                      lieu_naiss: String(lieuNaissSaisi),
+                      lieu_naiss: String(lieuNaissSaisi).toUpperCase(),
                       examen_id: String(examenIdSaisi).toUpperCase(),
                       session: parseInt(sessionSaisie, 10) || 2026,
-                      mention: String(mentionSaisie),
+                      mention: String(mentionSaisie || "Passable"),
                       etablissement_id: parseInt(etabIdSaisi, 10) || 1,
                       secteur_id: parseInt(secteurIdSaisi, 10) || 1,
                       filiere_id: parseInt(filiereIdSaisi, 10) || 1,
                       metier_id: parseInt(metierIdSaisi, 10) || 1,
-                      
                       progression: "AUCUNE_DEMANDE"
                     };
-
 
                     await API.post('http://localhost:8000/api/apprenants/creer', nouvelApprenant);
                     
@@ -3886,13 +4005,14 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                     setModalMode('');
                   } catch (err) {
                     console.error(err);
-                    alert("⚠️ Erreur 422 du serveur central : Le format ou le type de certaines données est incorrect.");
+                    alert("⚠️ Échec d'enregistrement : Le format de certaines données est incorrect ou la passerelle réseau de l'administration est hors ligne.");
                   }
                 }}
-
               >
                  Enregistrer l'Apprenant
               </button>
+
+
             </div>
           </div>
         </div>

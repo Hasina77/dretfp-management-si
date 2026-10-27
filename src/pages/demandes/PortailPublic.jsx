@@ -23,7 +23,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
         return;
       }
       try {
-        const response = await axios.get('http://localhost:8000/api/etablissements/lister');
+        const response = await axios.get('https://localhost:8000/api/etablissements/lister');
         if (Array.isArray(response.data)) {
           setCentresLocaux(response.data);
         }
@@ -37,21 +37,23 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
   const handleSoumettreFormulaire = async (e) => {
     e.preventDefault();
 
-    const matriculePropre = String(matricule).trim().toUpperCase();
+        const matriculePropre = String(matricule).trim().toUpperCase();
     
+        const regexMatriculeMalgache = /^.{3}-\d{4}-.{3}\$/;
 
-    if (!matricule || !nom) {
-      setMessage({ type: 'error', text: "⚠️ Le numéro matricule et le nom de l'apprenant sont obligatoires." });
-      return;
-    }
+        if (!matricule || !nom) {
+          setMessage({ type: 'error', text: "⚠️ Le numéro matricule (IM) et le nom de l'apprenant sont obligatoires." });
+          return;
+        }
 
-    if (!regexMatriculeMalgache.test(matriculePropre)) {
-      setMessage({ 
-        type: 'error', 
-        text: `🚨 Structure non conforme ! Format exigé : XXX-0000-XXX (Ex: 1GS-1111-CEC).` 
-      });
-      return;
-    }
+        if (!regexMatriculeMalgache.test(matriculePropre)) {
+          setMessage({ 
+            type: 'error', 
+            text: `🚨 Structure non conforme ! Format exigé : XXX-0000-XXX (Ex: 1HG-0000-DRT). Les 4 caractères du milieu doivent être strictement des CHIFFRES.` 
+          });
+          return;
+        }
+
 
     if (!etablissementId) {
       setMessage({ type: 'error', text: "⚠️ Veuillez sélectionner votre établissement d'origine." });
@@ -74,7 +76,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     };
 
     try {
-      const response = await axios.post('http://localhost:8000/api/demandes/recevoir-enligne', payload);
+      const response = await axios.post('https://localhost:8000/api/demandes/recevoir-enligne', payload);
       if (response.data.status === 'success') {
         setMessage({ 
           type: 'success', 
@@ -141,7 +143,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
                 <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Numéro Matricule (IM) :</label>
                 <input 
               type="text" 
-              placeholder="Ex: 1CF-0001-BEP" 
+              placeholder="Ex: 1CF-0000-BEP" 
               value={matricule} 
               onChange={(e) => setMatricule(e.target.value)}
               style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '4px', border: '1px solid #dadce0', boxSizing: 'border-box' }}
