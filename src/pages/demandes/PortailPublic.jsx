@@ -61,7 +61,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     if (!structureValide) {
       setMessage({ 
         type: 'error', 
-        text: `🚨 Structure non conforme ! Format exigé : XXX-0000-XXX (Ex: 1HG-0000-DRT). Les 4 caractères du milieu doivent être strictement des CHIFFRES.` 
+        text: `Structure non conforme ! Format exigé : XXX-0000-XXX (Ex: 1HG-0000-DRT). Les 4 caractères du milieu doivent être strictement des CHIFFRES.` 
       });
       return;
     }
