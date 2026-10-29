@@ -228,7 +228,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
                 disabled={loading}
                 style={{ width: '100%', height: '46px', backgroundColor: '#002f6c', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '0.95rem', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
               >
-                {loading ? "Transmission en cours..." : "🚀 Envoyer ma Demande en Ligne"}
+                {loading ? "Transmission en cours..." : " Envoyer ma Demande en Ligne"}
               </button>
             </div>
           </form>
