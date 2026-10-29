@@ -19,7 +19,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     useEffect(() => {
     const injecterEtChargerCentres = async () => {
       try {
-        const response = await axios.get('https://loca.lt', {
+        const response = await axios.get('https://pink-penguin-25.loca.lt', {
           headers: {
             'bypass-tunnel-reminder': 'true',
             'Content-Type': 'application/json'
@@ -90,7 +90,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     };
 
     try {
-      const response = await axios.post('https://loca.lt', payload, {
+      const response = await axios.post('https://pink-penguin-25.loca.lt', payload, {
     headers: {
       'bypass-tunnel-reminder': 'true',
       'Content-Type': 'application/json'
