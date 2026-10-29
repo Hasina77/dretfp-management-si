@@ -18,9 +18,8 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
   useEffect(() => {
     const injecterEtChargerCentres = async () => {
       try {
-        const response = await axios.get('https://loca.lt', {
+        const response = await axios.get('https://ngrok-free.dev', {
           headers: {
-            'bypass-tunnel-reminder': 'true',
             'Content-Type': 'application/json'
           }
         });
@@ -89,9 +88,8 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     };
 
     try {
-      const response = await axios.post('https://https://heavy-cougar-54.loca.lt/api/demandes/recevoir-enligne', payload, {
+      const response = await axios.post('https://ngrok-free.dev/api/demandes/recevoir-enligne', payload, {
         headers: {
-          'bypass-tunnel-reminder': 'true',
           'Content-Type': 'application/json'
         }
       });
