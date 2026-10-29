@@ -15,51 +15,65 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-  useEffect(() => {
+
+    useEffect(() => {
     const injecterEtChargerCentres = async () => {
-      const propsCentres = listeEtablissements || etablissementsOptions;
-      if (propsCentres && propsCentres.length > 0) {
-        setCentresLocaux(propsCentres);
-        return;
-      }
       try {
-        const response = await axios.get('https://localhost:8000/api/etablissements/lister');
+        const response = await axios.get('https://loca.lt', {
+          headers: {
+            'bypass-tunnel-reminder': 'true',
+            'Content-Type': 'application/json'
+          }
+        });
         if (Array.isArray(response.data)) {
           setCentresLocaux(response.data);
         }
       } catch (err) {
-        console.error("⚠️ Impossible de charger les établissements :", err);
+        console.error("⚠️ Erreur :", err);
       }
     };
     injecterEtChargerCentres();
-  }, [listeEtablissements, etablissementsOptions]);
+  }, []);
+
+
 
   const handleSoumettreFormulaire = async (e) => {
     e.preventDefault();
 
-        const matriculePropre = String(matricule).trim().toUpperCase();
-    
-        const regexMatriculeMalgache = /^.{3}-\d{4}-.{3}\$/;
+    const imPropre = String(matricule).trim().toUpperCase();
 
-        if (!matricule || !nom) {
-          setMessage({ type: 'error', text: "⚠️ Le numéro matricule (IM) et le nom de l'apprenant sont obligatoires." });
-          return;
-        }
+    if (!imPropre || !nom) {
+      setMessage({ type: 'error', text: "⚠️ Le numéro matricule (IM) et le nom de l'apprenant sont obligatoires." });
+      return;
+    }
 
-        if (!regexMatriculeMalgache.test(matriculePropre)) {
-          setMessage({ 
-            type: 'error', 
-            text: `🚨 Structure non conforme ! Format exigé : XXX-0000-XXX (Ex: 1HG-0000-DRT). Les 4 caractères du milieu doivent être strictement des CHIFFRES.` 
-          });
-          return;
-        }
+    let structureValide = true;
 
+    if (imPropre.length !== 12) {
+      structureValide = false;
+    }
+    else if (imPropre.charAt(3) !== '-' || imPropre.charAt(8) !== '-') {
+      structureValide = false;
+    }
+    else {
+      const caracteresDuMilieu = imPropre.substring(4, 8); 
+      if (isNaN(caracteresDuMilieu) || caracteresDuMilieu.includes(' ')) {
+        structureValide = false;
+      }
+    }
+
+    if (!structureValide) {
+      setMessage({ 
+        type: 'error', 
+        text: `🚨 Structure non conforme ! Format exigé : XXX-0000-XXX (Ex: 1HG-0000-DRT). Les 4 caractères du milieu doivent être strictement des CHIFFRES.` 
+      });
+      return;
+    }
 
     if (!etablissementId) {
       setMessage({ type: 'error', text: "⚠️ Veuillez sélectionner votre établissement d'origine." });
       return;
     }
-
     setLoading(true);
     setMessage({ type: '', text: '' });
 
@@ -76,7 +90,12 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     };
 
     try {
-      const response = await axios.post('https://localhost:8000/api/demandes/recevoir-enligne', payload);
+      const response = await axios.post('https://loca.lt', payload, {
+    headers: {
+      'bypass-tunnel-reminder': 'true',
+      'Content-Type': 'application/json'
+    }
+  });
       if (response.data.status === 'success') {
         setMessage({ 
           type: 'success', 
