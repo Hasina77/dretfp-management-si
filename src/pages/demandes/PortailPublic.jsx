@@ -76,7 +76,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
 
     
     let nomCentreTexte = "CENTRE REGIONAL";
-    if (etablissementId === "1") nomCentreTexte = "LTP AMBOSITRA";
+    if (etablissementId === "1") nomCentreTexte = "LTP Ambositra";
     if (etablissementId === "2") nomCentreTexte = "LTP FANDRIANA";
 
     const payload = {
