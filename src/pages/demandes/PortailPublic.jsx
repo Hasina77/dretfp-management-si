@@ -15,11 +15,10 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
 
-
-    useEffect(() => {
+  useEffect(() => {
     const injecterEtChargerCentres = async () => {
       try {
-        const response = await axios.get('https://pink-penguin-25.loca.lt', {
+        const response = await axios.get('https://loca.lt', {
           headers: {
             'bypass-tunnel-reminder': 'true',
             'Content-Type': 'application/json'
@@ -29,13 +28,11 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
           setCentresLocaux(response.data);
         }
       } catch (err) {
-        console.error("⚠️ Erreur :", err);
+        console.error("⚠️ Erreur de chargement des centres :", err);
       }
     };
     injecterEtChargerCentres();
   }, []);
-
-
 
   const handleSoumettreFormulaire = async (e) => {
     e.preventDefault();
@@ -81,22 +78,23 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     const nomCentreTexte = etabCible ? (etabCible.nom_etablissement || etabCible.nom) : "CENTRE REGIONAL";
 
     const payload = {
-      im_apprenant: matriculePropre,
+      im_apprenant: String(imPropre), 
       nom_apprenant: String(nom).trim().toUpperCase(),
       prenom_apprenant: String(prenom).trim(),
-      session: parseInt(session),
+      session: parseInt(session, 10) || 2026,
       type_document: String(typeDoc).toUpperCase(),
       centre_examen: String(nomCentreTexte).trim().toUpperCase()
     };
 
     try {
-      const response = await axios.post('https://pink-penguin-25.loca.lt', payload, {
-    headers: {
-      'bypass-tunnel-reminder': 'true',
-      'Content-Type': 'application/json'
-    }
-  });
-      if (response.data.status === 'success') {
+      const response = await axios.post('https://loca.lt', payload, {
+        headers: {
+          'bypass-tunnel-reminder': 'true',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (response.data.status === 'success' || response.data) {
         setMessage({ 
           type: 'success', 
           text: `🎉 Succès ! Votre demande de ${typeDoc.toLowerCase()} a été enregistrée à la DRETFP. Statut : En attente.` 
@@ -108,7 +106,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
       }
     } catch (err) {
       console.error(err);
-      setMessage({ type: 'error', text: `❌ Rejet : ${err.response?.data?.detail || "Erreur technique d'écriture."}` });
+      setMessage({ type: 'error', text: `❌ Rejet : ${err.response?.data?.detail || "Erreur technique de transmission."}` });
     } finally {
       setLoading(false);
     }
@@ -116,14 +114,11 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
 
   return (
     <div style={{ backgroundColor: '#f8f9fa', minHeight: '100vh', fontFamily: "'Poppins', 'Segoe UI', sans-serif", color: '#202124' }}>
-      
       <nav style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '15px 40px', backgroundColor: '#ffffff', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-        
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <img src={logoDretfp} alt="Logo" style={{ width: '35px', height: '34px', borderRadius: '4px' }} />
-            <span style={{ fontWeight: 'bold', color: '#3c4043', fontSize: '1.15rem', whiteSpace: 'nowrap' }}>DRETFP AMORON'I MANIA</span>
-          </div>
-       
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <img src={logoDretfp} alt="Logo" style={{ width: '35px', height: '34px', borderRadius: '4px' }} />
+          <span style={{ fontWeight: 'bold', color: '#3c4043', fontSize: '1.15rem', whiteSpace: 'nowrap' }}>DRETFP AMORON'I MANIA</span>
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', cursor: 'pointer' }}>
           <div style={{ width: '24px', height: '3px', backgroundColor: '#333' }}></div>
           <div style={{ width: '24px', height: '3px', backgroundColor: '#333' }}></div>
@@ -132,7 +127,6 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
       </nav>
 
       <div style={{ maxWidth: '850px', margin: '40px auto', padding: '0 20px', textAlign: 'center' }}>
-        
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', marginBottom: '10px' }}>
           <div style={{ width: '50px', height: '1px', backgroundColor: '#70757a' }}></div>
           <span style={{ fontSize: '0.95rem', fontWeight: '600', color: '#5f6368', textTransform: 'uppercase', letterSpacing: '1px' }}>Demandes de Titres</span>
@@ -140,11 +134,10 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
         </div>
 
         <h1 style={{ fontSize: '2.2rem', fontWeight: '700', marginBottom: '25px', color: '#002f6c' }}>
-          Toutes les Apprenants doivent complétées les informations 
+          Tous les Apprenants doivent compléter les informations 
         </h1>
 
         <div style={{ backgroundColor: '#ffffff', borderRadius: '12px', padding: '35px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)', textAlign: 'left', marginTop: '30px' }}>
-          
           {message.text && (
             <div style={{ 
               padding: '14px 20px', borderRadius: '6px', marginBottom: '25px', fontWeight: '600', fontSize: '0.92rem',
@@ -156,18 +149,17 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
             </div>
           )}
 
-            <form onSubmit={handleSoumettreFormulaire} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-            
-              <div style={{ gridColumn: '1 / span 2' }}>
-                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Numéro Matricule (IM) :</label>
-                <input 
-              type="text" 
-              placeholder="Ex: 1CF-0000-BEP" 
-              value={matricule} 
-              onChange={(e) => setMatricule(e.target.value)}
-              style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '4px', border: '1px solid #dadce0', boxSizing: 'border-box' }}
-            />
-              </div>
+          <form onSubmit={handleSoumettreFormulaire} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div style={{ gridColumn: '1 / span 2' }}>
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Numéro Matricule (IM) :</label>
+              <input 
+                type="text" 
+                placeholder="Ex: 1CF-0000-BEP" 
+                value={matricule} 
+                onChange={(e) => setMatricule(e.target.value)}
+                style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '4px', border: '1px solid #dadce0', boxSizing: 'border-box' }}
+              />
+            </div>
 
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Nom de l'Apprenant :</label>
@@ -184,7 +176,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
               <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Prénoms :</label>
               <input 
                 type="text" 
-                placeholder="Ex: Jean " 
+                placeholder="Ex: Jean" 
                 value={prenom} 
                 onChange={(e) => setPrenom(e.target.value)}
                 style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '6px', border: '1px solid #dadce0', boxSizing: 'border-box', fontSize: '0.92rem' }}
@@ -192,69 +184,56 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
             </div>
 
             <div style={{ gridColumn: '1 / span 2' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Établissement / Centre d'Origine :</label>
-              <select 
-                value={etablissementId} 
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Établissement d'Origine :</label>
+              <select
+                value={etablissementId}
                 onChange={(e) => setEtablissementId(e.target.value)}
-                style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '6px', border: '1px solid #dadce0', backgroundColor: '#ffffff', cursor: 'pointer', fontSize: '0.92rem' }}
+                style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '6px', border: '1px solid #dadce0', backgroundColor: '#fff', fontSize: '0.92rem' }}
               >
-                <option value="">-- Sélectionnez votre centre d'examen --</option>
-                {centresLocaux.map((e, i) => {
-                  const idUnique = e.id_etablissement ?? e.id ?? e.id_centre ?? i;
-                  return <option key={idUnique} value={idUnique}>{e.nom_etablissement || e.nom}</option>;
-                })}
+                <option value="">-- Sélectionnez votre centre d'études --</option>
+                {(centresLocaux || []).map((c) => (
+                  <option key={c.id_etablissement ?? c.id} value={c.id_etablissement ?? c.id}>
+                    {c.nom_etablissement || c.nom}
+                  </option>
+                ))}
               </select>
             </div>
 
             <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Type de Document demandé :</label>
-              <select 
-                value={typeDoc} 
-                onChange={(e) => setTypeDoc(e.target.value)}
-                style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '6px', border: '1px solid #dadce0', backgroundColor: '#ffffff', cursor: 'pointer', fontSize: '0.92rem' }}
-              >
-                <option value="ATTESTATION">📜 Attestation de Réussite</option>
-                <option value="DIPLOME">🎓 Diplôme National</option>
-              </select>
-            </div>
-
-            <div>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Année de la Session :</label>
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Session :</label>
               <input 
                 type="number" 
                 value={session} 
                 onChange={(e) => setSession(e.target.value)}
-                style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '6px', border: '1px solid #dadce0', boxSizing: 'border-box', fontSize: '0.92rem' }}
+                style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '6px', border: '1px solid #dadce0', boxSizing: 'border-box' }}
               />
             </div>
 
-            <div style={{ gridColumn: '1 / span 2', marginTop: '15px' }}>
-              <button 
-                type="submit" 
-                disabled={loading}
-                style={{ 
-                  width: '100%', height: '46px', backgroundColor: loading ? '#9aa0a6' : '#1a73e8', 
-                  color: '#ffffff', border: 'none', borderRadius: '6px', fontWeight: 'bold', 
-                  cursor: loading ? 'not-allowed' : 'pointer', fontSize: '1rem', transition: 'background-color 0.2s'
-                }}
+            <div>
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Type de document :</label>
+              <select
+                value={typeDoc}
+                onChange={(e) => setTypeDoc(e.target.value)}
+                style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '6px', border: '1px solid #dadce0', backgroundColor: '#fff' }}
               >
-                {loading ? '⏳ Traitement sécurisé en cours...' : '🚀 Envoyer ma Demande en Ligne'}
-              </button>
+                <option value="ATTESTATION">ATTESTATION</option>
+                <option value="DIPLOME">DIPLÔME</option>
+                <option value="RELEVE">RELEVÉ DE NOTES</option>
+              </select>
             </div>
 
+            <div style={{ gridColumn: '1 / span 2', marginTop: '15px' }}>
+              <button
+                type="submit"
+                disabled={loading}
+                style={{ width: '100%', height: '46px', backgroundColor: '#002f6c', color: '#fff', border: 'none', borderRadius: '6px', fontWeight: '600', fontSize: '0.95rem', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}
+              >
+                {loading ? "Transmission en cours..." : "🚀 Envoyer ma Demande en Ligne"}
+              </button>
+            </div>
           </form>
         </div>
-
-        <div style={{ backgroundColor: '#e8f0fe', borderRadius: '8px', padding: '15px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '30px', border: '1px solid #d2e3fc' }}>
-          <div style={{ backgroundColor: '#1a73e8', color: '#fff', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📋</div>
-          <div style={{ textAlign: 'left' }}>
-            <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#5f6368', textTransform: 'uppercase' }}>Suivi d'instruction</div>
-            <div style={{ fontSize: '0.92rem', fontWeight: '600', color: '#185abc' }}>Traitement immédiat après validation du guichet régional</div>
-          </div>
-        </div>
-
       </div>
     </div>
   );
 }
-
