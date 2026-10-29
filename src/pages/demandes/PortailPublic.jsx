@@ -74,8 +74,10 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     setLoading(true);
     setMessage({ type: '', text: '' });
 
-    const etabCible = (centresLocaux || []).find(c => (c.id_etablissement ?? c.id ?? c.id_centre)?.toString() === etablissementId.toString());
-    const nomCentreTexte = etabCible ? (etabCible.nom_etablissement || etabCible.nom) : "CENTRE REGIONAL";
+    
+    let nomCentreTexte = "CENTRE REGIONAL";
+    if (etablissementId === "1") nomCentreTexte = "LTP AMBOSITRA";
+    if (etablissementId === "2") nomCentreTexte = "LTP FANDRIANA";
 
     const payload = {
       im_apprenant: String(imPropre), 
@@ -184,20 +186,23 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
             </div>
 
             <div style={{ gridColumn: '1 / span 2' }}>
-              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Établissement d'Origine :</label>
+              <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>
+                Établissement d'Origine :
+              </label>
               <select
                 value={etablissementId}
                 onChange={(e) => setEtablissementId(e.target.value)}
                 style={{ width: '100%', height: '42px', padding: '0 12px', borderRadius: '6px', border: '1px solid #dadce0', backgroundColor: '#fff', fontSize: '0.92rem' }}
               >
                 <option value="">-- Sélectionnez votre centre d'études --</option>
-                {(centresLocaux || []).map((c) => (
-                  <option key={c.id_etablissement ?? c.id} value={c.id_etablissement ?? c.id}>
-                    {c.nom_etablissement || c.nom}
-                  </option>
-                ))}
+                
+                {/* 🚀 Tes vrais établissements d'Amoron'i Mania avec leurs ID de ta base MySQL */}
+                <option value="1">LTP AMBOSITRA</option>
+                <option value="2">LTP FANDRIANA</option>
+                
               </select>
             </div>
+
 
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontWeight: '600', fontSize: '0.88rem', color: '#3c4043' }}>Session :</label>
