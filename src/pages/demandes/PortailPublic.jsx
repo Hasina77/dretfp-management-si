@@ -90,7 +90,8 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     try {
       const response = await axios.post('https://purplish-smother-germicide.ngrok-free.dev/api/demandes/recevoir-enligne', payload, {
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true'
         }
       });
       
