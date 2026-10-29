@@ -18,7 +18,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
   useEffect(() => {
     const injecterEtChargerCentres = async () => {
       try {
-        const response = await axios.get('https://ngrok-free.dev', {
+        const response = await axios.get('https://purplish-smother-germicide.ngrok-free.dev/api/demandes/recevoir-enligne', {
           headers: {
             'Content-Type': 'application/json'
           }
@@ -88,7 +88,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     };
 
     try {
-      const response = await axios.post('https://ngrok-free.dev/api/demandes/recevoir-enligne', payload, {
+      const response = await axios.post('https://purplish-smother-germicide.ngrok-free.dev/api/demandes/recevoir-enligne', payload, {
         headers: {
           'Content-Type': 'application/json'
         }
