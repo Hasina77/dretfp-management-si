@@ -197,7 +197,7 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
                 <option value="">-- Sélectionnez votre centre d'études --</option>
                 
                 {/* 🚀 Tes vrais établissements d'Amoron'i Mania avec leurs ID de ta base MySQL */}
-                <option value="1">LTP AMBOSITRA</option>
+                <option value="1">LTP Ambositra</option>
                 <option value="2">LTP FANDRIANA</option>
                 
               </select>
@@ -223,7 +223,6 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
               >
                 <option value="ATTESTATION">ATTESTATION</option>
                 <option value="DIPLOME">DIPLÔME</option>
-                <option value="RELEVE">RELEVÉ DE NOTES</option>
               </select>
             </div>
 
