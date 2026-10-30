@@ -74,9 +74,12 @@ export default function PortailPublic({ listeEtablissements, etablissementsOptio
     setMessage({ type: '', text: '' });
 
     
-    let nomCentreTexte = "CENTRE REGIONAL";
-    if (etablissementId === "1") nomCentreTexte = "LTP Ambositra";
-    if (etablissementId === "2") nomCentreTexte = "LTP FANDRIANA";
+    let nomCentreTexte = "CENTRE REGIONAL DRETFP";
+    
+    const idSelectionne = etablissementId ? etablissementId.toString().trim() : "";
+
+    if (idSelectionne === "1") nomCentreTexte = "LTP AMBOSITRA";
+    if (idSelectionne === "2") nomCentreTexte = "LTP FANDRIANA";
 
     const payload = {
       im_apprenant: String(imPropre), 
