@@ -273,6 +273,25 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterT
           </ul>
         )}
 
+
+        <li 
+          className={`sidebar-item ${activeMenu === 'resultat_etablissement' ? 'active' : ''}`}
+          onClick={() => setActiveMenu('resultat_etablissement')}
+          style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            justifyContent: isSidebarOpen ? 'flex-start' : 'center',
+            gap: '12px', 
+            padding: '10px 1.5rem', 
+            cursor: 'pointer', 
+            color: '#5f6368',
+            whiteSpace: 'nowrap'
+          }}
+           >
+          <LuCalendar style={{ fontSize: '1.2rem', color: '#5f6368', flexShrink: 0 }} />
+          <span>Résultat par Etablissement</span>
+        </li>
+
         <li 
           className="sidebar-item" 
           onClick={() => navigate('/saisie-notes')} 

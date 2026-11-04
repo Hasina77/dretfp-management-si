@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
+import API from '../../services/api'; // Utilisation de votre instance API centralisée
 import './Login.css'; 
 
 const Login = () => {
@@ -8,17 +8,18 @@ const Login = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-    const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
+      // Encodage conforme à OAuth2PasswordRequestForm (Form-data urlencoded)
       const params = new URLSearchParams();
       params.append('username', email); 
       params.append('password', password);
 
-      const response = await axios.post('http://localhost:8000/api/auth/login', params, {
+      const response = await API.post('/auth/login', params, {
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
         }
@@ -26,9 +27,11 @@ const Login = () => {
 
       const { access_token, role } = response.data;
 
+      // Stockage local persistant pour sécuriser les routes frontend
       localStorage.setItem('dretfp_token', access_token);
       localStorage.setItem('user_role', role);
 
+      // Routage dynamique basé sur les privilèges de l'acteur connecté
       if (role === 'ADMIN_DRETFP' || role === 'AGENT_CENTRE') {
         window.location.href = '/dashboard';
       } else if (role === 'APPRENANT') {
@@ -46,8 +49,6 @@ const Login = () => {
     }
   };
 
-
-
   return (
     <div className="login-container">
       <div className="login-card">
@@ -62,11 +63,11 @@ const Login = () => {
           <div className="form-group">
             <label htmlFor="email">Adresse E-mail Professionnelle ou Matricule</label>
             <input
-              type="email"
+              type="text" // Remplacé "email" par "text" pour autoriser la saisie des numéros matricules d'examen
               id="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="example@gmail.com"
+              placeholder="Ex: agent@dretfp.mg ou XXX-0000-XXX"
               required
             />
           </div>

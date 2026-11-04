@@ -58,6 +58,32 @@ const DashboardAdmin = () => {
   const [demandesListeCochees, setDemandesListeCochees] = useState([]);
   const [demandesEnLigneCochees, setDemandesEnLigneCochees] = useState([]);
 
+  const [showAddChefModal, setShowAddChefModal] = useState(false);
+  const [chefsCentre, setChefsCentre] = useState([]);
+  const [openChefMenuId, setOpenChefMenuId] = useState(null);
+  const [selectedChefEtabId, setSelectedChefEtabId] = useState(null);
+  const [subApprenantsCoches, setSubApprenantsCoches] = useState([]);
+  const [notifChefsCount, setNotifChefsCount] = useState(0);
+  const verifierNotificationsChefs = async () => {
+    try {
+      const response = await API.get('/apprenants/notifications-attente');
+      setNotifChefsCount(response.data.notifications_count);
+    } catch (err) {
+      console.error("⚠️ Impossible de charger les notifications de fiches candidats :", err);
+    }
+  };
+
+  useEffect(() => {
+    verifierNotificationsChefs(); 
+    
+    const intervalle = setInterval(() => {
+      verifierNotificationsChefs();
+    }, 30000); 
+
+    return () => clearInterval(intervalle); 
+  }, []);
+
+
   const [openDemandeMenuId, setOpenDemandeMenuId] = useState(null);
   const [openTraitementMenuId, setOpenTraitementMenuId] = useState(null);
 
@@ -138,7 +164,27 @@ const DashboardAdmin = () => {
 
  
 
-   
+  const chargerChefsCentre = async () => {
+    try {
+      const response = await API.get('/chefs-centre/liste');
+      setChefsCentre(response.data);
+    } catch (err) {
+      console.error("❌ Impossible de récupérer la liste des chefs de centre depuis MySQL :", err);
+    }
+  };
+
+  useEffect(() => {
+    if (['liste_apprenants', 'liste_secteurs', 'liste_filieres', 'liste_metiers'].includes(activeMenu)) {
+      chargerApprenants();
+      if (typeof chargerNomenclaturesBdd === 'function') {
+        chargerNomenclaturesBdd();
+      }
+    }
+    if (activeMenu === 'resultat_etablissement') {
+      chargerChefsCentre();
+    }
+  }, [activeMenu]);
+
 
    const chargerNomenclaturesBdd = async () => {
     try {
@@ -328,7 +374,6 @@ const DashboardAdmin = () => {
           return;
         }
 
-        // 🚨 1. ANALYSE ET VALIDATION DE LA STRUCTURE DES MATRICULES
         for (let i = 0; i < listeImportee.length; i++) {
           const row = listeImportee[i];
           const matriculeBrut = String(row['Matricule (IM)'] || row['im_apprenant'] || row['Matricule'] || row['IM'] || "").trim().toUpperCase();
@@ -375,7 +420,6 @@ const DashboardAdmin = () => {
             String(ex.nom_examen || ex.nom || ex.id_examen || "").trim().toLowerCase() === examenTexte
           );
 
-          // Extraction des clés primaires de sécurité (secours automatique sur l'ID 1 en cas de problème)
           const finalEtabId = etabTrouve ? (etabTrouve.id_etablissement ?? etabTrouve.id ?? etabTrouve.id_centre) : 1;
           const finalSecteurId = secteurTrouve ? (secteurTrouve.id_secteur ?? secteurTrouve.id) : 1;
           const finalFiliereId = filiereTrouve ? (filiereTrouve.id_filiere ?? filiereTrouve.id) : 1;
@@ -389,10 +433,8 @@ const DashboardAdmin = () => {
             date_naiss: String(row['Date de Naissance'] || row['date_naiss'] || '2000-01-01').trim(),
             lieu_naiss: String(row['Lieu de Naissance'] || row['lieu_naiss'] || 'INCONNU').toUpperCase().trim(),
             
-            // 🚨 LE CORRECTIF ABSOLU DU CRASH : examen_id doit être une CHAINE DE CARACTÈRES (STRING)
             examen_id: String(finalExamenId),
             
-            // Les autres champs restent des nombres ENTIERS (INTEGER) conformes aux clés étrangères MySQL
             etablissement_id: parseInt(finalEtabId, 10) || 1,
             secteur_id: parseInt(finalSecteurId, 10) || 1,
             filiere_id: parseInt(finalFiliereId, 10) || 1,
@@ -405,7 +447,6 @@ const DashboardAdmin = () => {
         });
 
 
-        // 🚨 3. ZONE DE TRANSMISSION ET SYNCHRONISATION LOCALHOST
         console.log("📦 [DONNÉES ENVOYÉES À FASTAPI] :", { apprenants: apprenantsFormates });
 
         try {
@@ -1638,6 +1679,35 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
           <div className="header-title">
             <h1>Direction Régionale de l'Enseignement Technique</h1>
           </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginLeft: '24rem' }}>
+            
+            <div 
+              onClick={() => {
+                setActiveMenu('resultat_etablissement'); 
+                setNotifChefsCount(0); 
+              }}
+              style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '8px', borderRadius: '50%', background: notifChefsCount > 0 ? '#fde8e8' : '#f1f3f4', transition: 'all 0.2s' }}
+              title={notifChefsCount > 0 ? `🔔 ${notifChefsCount} fiches candidats reçues du terrain !` : "Aucune notification"}
+            >
+              <span >🔔</span>
+              {notifChefsCount > 0 && (
+                <span 
+                  style={{
+                    position: 'absolute', top: '-4px', right: '-4px',
+                    backgroundColor: '#e53e3e', color: '#ffffff',
+                    fontSize: '0.75rem', fontWeight: 'bold',
+                    padding: '2px 6px', borderRadius: '10px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                    animation: 'scaleUpModal 0.3s ease-out'
+                  }}
+                >
+                  {notifChefsCount}
+                </span>
+              )}
+            </div>
+            </div>
+
             <button 
               type="button"
               className="btn-demandes-en-ligne"
@@ -2368,14 +2438,7 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
             <div>
               <div className="section-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span>🌐 Gestion des Demandes Déposées en Ligne (Portail Public)</span>
-                <button
-                  type="button"
-                  className="btn-back-dashboard"
-                  onClick={() => setActiveMenu('tableau_de_bord')}
-                  style={{ backgroundColor: '#f1f3f4', color: '#202124', border: '1px solid #dadce0', borderRadius: '4px', padding: '6px 12px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
-                >
-                  ⬅️ Retour au Tableau de bord
-                </button>
+                
               </div>
 
               {(demandesEnLigneCochees || []).length > 0 && (
@@ -2467,17 +2530,11 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                             <td><strong>{dem.im_apprenant}</strong></td>
                             <td style={{ fontWeight: '500' }}>{dem.nom_complet}</td>
                             <td><span className="type-badge" style={{ backgroundColor: '#e8f0fe', color: '#1a73e8', padding: '3px 6px', borderRadius: '4px', fontSize: '0.82rem', fontWeight: '600' }}>{dem.type_document}</span></td>
-                            
                             <td>
-                              <strong>
-                                {(() => {
-                                  const eleveProfil = (apprenants || []).find(app => String(app.im_apprenant).trim() === String(dem.im_apprenant).trim());
-                                  if (eleveProfil && eleveProfil.etablissement_id) {
-                                    const etabTrouve = (listeEtablissements || etablissementsOptions || []).find(e => (e.id_etablissement ?? e.id ?? e.id_centre)?.toString() === eleveProfil.etablissement_id?.toString());
-                                    if (etabTrouve) return (etabTrouve.nom_etablissement || etabTrouve.nom).toUpperCase();
-                                  }
-                                  return dem.centre_examen ? dem.centre_examen.toUpperCase() : "LTP AMBOSITRA";
-                                })()}
+                              <strong style={{ color: '#002f6c' }}>
+                                {
+                                  dem.centre_examen ? dem.centre_examen.toUpperCase() : "LTP AMBOSITRA"
+                                }
                               </strong>
                             </td>
 
@@ -3570,8 +3627,465 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
             </div>
           )}
 
+          {activeMenu === 'resultat_etablissement' && (
+            <div style={{ padding: '20px', fontFamily: "'Poppins', sans-serif" }}>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f0f0', paddingBottom: '15px' }}>
+                <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#002f6c', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  🏢 Résultat par Établissement (Gestion des Chefs de Centre)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowAddChefModal(true)}
+                  style={{ backgroundColor: '#1a73e8', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem', boxShadow: '0 2px 4px rgba(26,115,232,0.2)' }}
+                >
+                  ➕ Ajouter un Chef de Centre
+                </button>
+              </div>
+
+              <div style={{ marginBottom: '30px' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#333', fontSize: '1.1rem' }}>
+                  👥 Liste des Chefs de Centre Rattachés
+                </h3>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
+                  {!chefsCentre || chefsCentre.length === 0 ? (
+                    <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#5f6368', padding: '20px', background: '#fff', borderRadius: '8px', border: '1px solid #eef2f5' }}>
+                      📭 Aucun chef de centre inscrit pour le moment.
+                    </p>
+                  ) : (
+                    chefsCentre.map((chef, index) => {
+                      const tabEtab = listeEtablissements || etablissementsOptions || [];
+                      const MonEtab = tabEtab.find(e => (e.id_centre ?? e.id_etablissement ?? e.id)?.toString() === chef.id_etablissement?.toString());
+                      const nomAffichageEtab = MonEtab ? MonEtab.nom_etablissement : `CENTRE ID: ${chef.id_etablissement}`;
+
+                      const idChefUnique = chef.id_chefcentre || index;
+
+                      return (
+                        <div key={idChefUnique} style={{ backgroundColor: '#ffffff', borderRadius: '12px', overflow: 'visible', boxShadow: '0 4px 10px rgba(0,0,0,0.04)', border: '1px solid #eef2f5', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', position: 'relative' }}>
+                          
+                          <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenChefMenuId(openChefMenuId === idChefUnique ? null : idChefUnique);
+                              }}
+                              style={{ background: 'none', border: 'none', fontSize: '1.4rem', fontWeight: 'bold', color: '#5f6368', cursor: 'pointer', padding: '0 5px' }}
+                            >
+                              ⋮
+                            </button>
+
+                            {openChefMenuId === idChefUnique && (
+                              <div style={{ position: 'absolute', right: 0, top: '25px', backgroundColor: '#ffffff', border: '1px solid #dadce0', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 999, minWidth: '160px', padding: '5px 0' }}>
+                                <button
+                                  type="button"
+                                  style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', color: '#3c4043', display: 'flex', gap: '6px' }}
+                                  onClick={() => {
+                                    setSelectedChefEtabId(chef.id_etablissement);
+                                    setOpenChefMenuId(null);
+                                  }}
+                                >
+                                   Apprenants Diplômés
+                                </button>
+
+                                <button
+                                type="button"
+                                style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', color: '#25D366', fontWeight: '500', display: 'flex', gap: '6px' }}
+                                onClick={() => {
+                                  if (!chef.tel_chefcentre) {
+                                    alert("⚠️ Impossible d'envoyer : Aucun numéro de téléphone n'est renseigné pour ce chef de centre.");
+                                    return;
+                                  }
+                                  
+                                  const numNettoye = chef.tel_chefcentre.replace(/\s+/g, '').replace('+', '').replace(/-/g, '');
+                                  
+                                  const texteWhatsapp = `🏛️ *DRETFP AMORON'I MANIA*\n\nBonjour ${chef.nom_chefcentre} ${chef.prenom_chefcentre || ''},\n\nVoici votre lien d'accès sécurisé à distance pour enregistrer et valider les notes des apprenants de votre établissement :\n\n🔗 *Lien d'accès :* ${window.location.origin}/login\n\nVotre identifiant unique obligatoire (Username) : *${chef.username}*\n\nLe Responsable de la Direction Régionale.`;
+                                  const messageCode = encodeURIComponent(texteWhatsapp);
+                                  
+                                  const urlComplete = "https://wa.me/" + numNettoye + "?text=" + messageCode;
+                                  window.open(urlComplete, "_blank");
+                                  
+                                  setOpenChefMenuId(null);
+                                }}
+
+                              >
+                                Notifier par WhatsApp
+                              </button>
+
+                              <button
+                                type="button"
+                                style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', color: '#002f6c', fontWeight: '500', display: 'flex', gap: '6px' }}
+                                onClick={() => {
+                                  if (!chef.mail_chefcentre) {
+                                    alert("⚠️ Impossible d'envoyer : Aucune adresse e-mail n'est renseignée pour ce chef de centre.");
+                                    return;
+                                  }
+                                  
+                                  const sujet = encodeURIComponent("DRETFP Amoron'i Mania — Portail sécurisé de saisie — Saisie des examens");
+                                  const texteEmail = `Bonjour ${chef.nom_chefcentre} ${chef.prenom_chefcentre || ''},\n\nDans le cadre de la centralisation et de l'automatisation des examens régionaux, veuillez trouver ci-dessous votre lien d'accès unique au serveur central :\n\nPortail de connexion : ${window.location.origin}/login\n\nVotre identifiant de création de compte (Username) : ${chef.username}\n\nCordialement,\nLe Responsable de la Direction Régionale DRETFP.`;
+                                  const messageCodeEmail = encodeURIComponent(texteEmail);
+                                  
+                                  window.open(`mailto:${chef.mail_chefcentre}?subject=${sujet}&body=${messageCodeEmail}`, '_blank');
+                                  setOpenChefMenuId(null);
+                                }}
+                              >
+                                Notifier par E-mail
+                              </button>
+
+                                <button
+                                  type="button"
+                                  style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', color: '#d93025', display: 'flex', gap: '6px' }}
+                                  onClick={async () => {
+                                    if (window.confirm(`⚠️ Supprimer définitivement la fiche du chef ${chef.nom_chefcentre} ?`)) {
+                                      try {
+                                        await API.delete(`/chefs-centre/supprimer/${chef.id_chefcentre}`);
+                                        alert("🗑️ Chef de centre retiré avec succès.");
+                                        chargerChefsCentre();
+                                      } catch (err) {
+                                        alert("Erreur lors de la suppression.");
+                                      }
+                                    }
+                                    setOpenChefMenuId(null);
+                                  }}
+                                >
+                                   Révoquer
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          <div style={{ backgroundColor: '#e3ecfa', width: '100%', padding: '20px 0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+                            <div style={{ width: '60px', height: '60px', backgroundColor: '#a4c2f4', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#ffffff', fontSize: '1.5rem', fontWeight: 'bold', border: '3px solid #ffffff' }}>
+                              {chef.nom_chefcentre ? chef.nom_chefcentre.charAt(0).toUpperCase() : 'C'}
+                            </div>
+                          </div>
+                          <div style={{ padding: '15px 10px 20px 10px', width: '100%', boxSizing: 'border-box' }}>
+                            <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: '700', color: '#202124', textTransform: 'uppercase' }}>{chef.nom_chefcentre}</h4>
+                            <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#5f6368' }}>{chef.prenom_chefcentre || ""}</p>
+                            <div style={{ width: '50px', height: '2px', backgroundColor: '#a4c2f4', margin: '0 auto 10px auto', borderRadius: '2px' }}></div>
+                            <span style={{ display: 'inline-block', backgroundColor: '#f1f3f4', color: '#3c4043', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📍 {nomAffichageEtab}</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+            {selectedChefEtabId && (
+              <div style={{ marginTop: '30px', background: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #eef2f5', animation: 'fadeIn 0.2s ease-in-out' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ margin: 0, color: '#002f6c', fontSize: '1.1rem' }}>
+                    📋 Liste des Diplômés inscrits pour : {
+                      listeEtablissements.find(e => (e.id_centre ?? e.id_etablissement ?? e.id)?.toString() === selectedChefEtabId.toString())?.nom_etablissement || `Établissement ID ${selectedChefEtabId}`
+                    }
+                  </h3>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    {subApprenantsCoches && subApprenantsCoches.length > 0 && (
+                      <div 
+                        className="bulk-transfer-red-zone"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '12px',
+                          backgroundColor: '#fde8e8', // Fond rouge clair
+                          border: '1px solid #f8b4b4', // Bordure rouge
+                          padding: '6px 14px',
+                          borderRadius: '6px',
+                          animation: 'scaleUpModal 0.2s ease-out'
+                        }}
+                      >
+                        <span style={{ color: '#c5221f', fontSize: '0.85rem', fontWeight: '600' }}>
+                          🎯 {subApprenantsCoches.length} coché(s)
+                        </span>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!window.confirm(`❓ Confirmez-vous le traitement et l'activation du parcours pour ces ${subApprenantsCoches.length} apprenant(s) vers le registre général ?`)) {
+                              return;
+                            }
+
+                            let succesCount = 0;
+                            
+                            for (const idApp of subApprenantsCoches) {
+                              const eleve = apprenants.find(a => (a.id_apprenant || a.id) === idApp);
+                              if (!eleve) continue;
+
+                              try {
+                                const donneesModifiees = {
+                                  ...eleve,
+                                  progression: "AUCUNE_DEMANDE" // Réinitialisation pour affichage dans la liste principale
+                                };
+
+                                await API.put(`/apprenants/modifier/${eleve.im_apprenant}`, donneesModifiees);
+                                succesCount++;
+                              } catch (apiErr) {
+                                console.error(`❌ Échec de transfert pour ${eleve.im_apprenant} :`, apiErr);
+                              }
+                            }
+
+                            alert(`📊 Synchronisation centrale réussie :\n✅ ${succesCount} apprenant(s) synchronisé(s) dans la Liste des Apprenants !`);
+                            
+                            if (typeof chargerApprenants === 'function') await chargerApprenants();
+                            setSubApprenantsCoches([]); // Vider la sélection locale
+                          }}
+                          style={{
+                            backgroundColor: '#c5221f', // Bouton rouge
+                            color: '#ffffff',
+                            border: 'none',
+                            padding: '6px 12px',
+                            borderRadius: '4px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            fontSize: '0.82rem',
+                            boxShadow: '0 2px 4px rgba(197,34,31,0.2)'
+                          }}
+                        >
+                          🚀 Transfert vers la liste de l'apprenant
+                        </button>
+                      </div>
+                    )}
+
+                    <button 
+                      type="button" 
+                      onClick={() => { setSelectedChefEtabId(null); setSubApprenantsCoches([]); }}
+                      style={{ background: '#f1f3f4', border: 'none', padding: '8px 14px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
+                    >
+                      Fermer la liste ×
+                    </button>
+                  </div>
+                </div>
+
+                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '40px', textAlign: 'center' }}>
+                        <input
+                          type="checkbox"
+                          checked={
+                            apprenants.filter(app => (app.etablissement_id ?? app.centre_id)?.toString() === selectedChefEtabId.toString()).length > 0 &&
+                            subApprenantsCoches.length === apprenants.filter(app => (app.etablissement_id ?? app.centre_id)?.toString() === selectedChefEtabId.toString()).length
+                          }
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              const idsFiltres = apprenants
+                                .filter(app => (app.etablissement_id ?? app.centre_id)?.toString() === selectedChefEtabId.toString())
+                                .map(app => app.id_apprenant || app.id);
+                              setSubApprenantsCoches(idsFiltres);
+                            } else {
+                              setSubApprenantsCoches([]);
+                            }
+                          }}
+                          style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                        />
+                      </th>
+                      <th>N° IM (Matricule)</th>
+                      <th>Nom & Prénoms</th>
+                      <th>Date & Lieu Naissance</th>
+                      <th>Examen & Session</th>
+                      <th>Établissement & Secteur</th> 
+                      <th>Filière & Métier</th>
+                      <th>Mention</th>
+                      <th>Statut Demande</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {apprenants.filter(app => (app.etablissement_id ?? app.centre_id)?.toString() === selectedChefEtabId.toString()).length === 0 ? (
+                      <tr>
+                        <td colSpan="9" style={{ textAlign: 'center', padding: '20px', color: '#5f6368', fontStyle: 'italic' }}>
+                          📭 Aucun apprenant enregistré pour cet établissement dans la base de données.
+                        </td>
+                      </tr>
+                    ) : (
+                      apprenants
+                        .filter(app => (app.etablissement_id ?? app.centre_id)?.toString() === selectedChefEtabId.toString())
+                        .map((app, i) => {
+                          const idLigneUnik = app.id_apprenant || app.id || i;
+                          const isCochee = subApprenantsCoches.includes(idLigneUnik);
+
+                          const nomEtab = listeEtablissements.find(e => (e.id_etablissement ?? e.id ?? e.id_centre)?.toString() === (app.etablissement_id ?? app.centre_id)?.toString())?.nom_etablissement || "Centre d'origine";
+                          const nomSec = (listeSecteurs || []).find(s => (s.id_secteur ?? s.id)?.toString() === app.secteur_id?.toString())?.nom_secteur || "Secteur non défini";
+                          const nomFil = (listeFilieres || []).find(f => (f.id_filiere ?? f.id)?.toString() === app.filiere_id?.toString())?.nom_filiere || "Filière non définie";
+                          const nomMet = (listeMetiers || []).find(m => (m.id_metier ?? m.id)?.toString() === app.metier_id?.toString())?.nom_metier || "Métier non défini";
+
+                          return (
+                            <tr key={idLigneUnik} style={{ backgroundColor: isCochee ? '#f8fafc' : 'transparent' }}>
+                              <td style={{ textAlign: 'center' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={isCochee}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSubApprenantsCoches(prev => [...prev, idLigneUnik]);
+                                    } else {
+                                      setSubApprenantsCoches(prev => prev.filter(id => id !== idLigneUnik));
+                                    }
+                                  }}
+                                  style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
+                                />
+                              </td>
+                              <td><strong>{app.im_apprenant || "N/A"}</strong></td>
+                              <td style={{ fontWeight: '500' }}>{app.nom_apprenant} {app.prenom_apprenant || ""}</td>
+                              <td>{app.date_naiss || "N/A"} à <span style={{ textTransform: 'uppercase', fontSize: '0.82rem' }}>{app.lieu_naiss || "Inconnu"}</span></td>
+                                                            <td style={{ fontSize: '0.88rem' }}>
+                                <div style={{ fontWeight: 'bold', color: '#4b4f55' }}>
+                                  {(() => {
+                                    const idBrut = app.examen_id?.toString();
+                                    const exTrouve = (listeExamens || []).find(ex => (ex.id_examen ?? ex.id)?.toString() === idBrut);
+                                    return exTrouve ? (exTrouve.nom_exam ?? exTrouve.nom_examen) : (idBrut || 'CAP');
+                                  })()}
+                                </div>
+                                <div style={{ fontSize: '0.78rem', color: '#5f6368' }}>({app.session || '2026'})</div>
+                              </td>
+
+                              <td>
+                                <strong>{nomEtab}</strong>
+                                <br/>
+                                <small style={{ color: '#5f6368', fontStyle: 'italic' }}>{nomSec}</small>
+                              </td>
+
+                              <td>
+                                <strong style={{ color: '#3c4043' }}>{nomFil}</strong>
+                                <br/>
+                                <small style={{ color: '#5f6368', fontStyle: 'italic' }}>{nomMet}</small>
+                              </td>
+
+                              <td><em style={{ color: '#1a73e8', fontWeight: 600 }}>{app.mention || 'Passable'}</em></td>
+                              
+                              <td>
+                                {(() => {
+                                  const dmdAssociee = (demandes || []).find(d => d.im_apprenant?.toString() === app.im_apprenant?.toString());
+                                  const statutDmd = (dmdAssociee?.statut || "AUCUNE_DEMANDE").toUpperCase();
+
+                                  if (statutDmd === 'TERMINER') return <span className="status-badge valide">✅ Terminé / Signé</span>;
+                                  if (statutDmd === 'EN_COURS' || statutDmd === 'EN_TRAITEMENT') return <span className="status-badge en-cours" style={{ backgroundColor: '#e8f0fe', color: '#1a73e8' }}>⏳ En traitement</span>;
+                                  if (statutDmd === 'EN_ATTENTE') return <span className="status-badge en-attente" style={{ backgroundColor: '#fef7e0', color: '#b06000' }}>⏳ En attente</span>;
+                                  return <span className="status-badge offline" style={{ backgroundColor: '#f1f3f4', color: '#5f6368' }}>❌ Aucune</span>;
+                                })()}
+                              </td>
+                            </tr>
+                          );
+                        })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            </div>
+          )}
+
+
         </div> 
       </div> 
+
+
+      {showAddChefModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0, 0, 0, 0.4)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 9999 }}>
+          <div style={{ backgroundColor: '#ffffff', borderRadius: '10px', width: '450px', padding: '25px', boxShadow: '0 8px 30px rgba(0,0,0,0.15)', boxSizing: 'border-box', position: 'relative' }}>
+            
+            <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#002f6c', fontSize: '1.2rem', borderBottom: '2px solid #f0f0f0', paddingBottom: '10px' }}>
+              ➕ Enregistrer un Chef de Centre
+            </h3>
+            
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              const form = e.target;
+              const payload = {
+                nom_chefcentre: form.nom.value,
+                prenom_chefcentre: form.prenom.value,
+                username: form.username.value,
+                tel_chefcentre: form.tel.value,
+                mail_chefcentre: form.mail.value,
+                id_etablissement: parseInt(form.etablissement.value, 10)
+              };
+
+              try {
+                // Utilisation propre de votre instance Axios centralisée
+                const response = await API.post('/chefs-centre/enregistrer', payload);
+                
+                if (response.data.status === 'success' || response.data) {
+                  alert("🎉 Chef de centre enregistré avec succès dans MySQL (WampServer) !");
+                  form.reset();
+                  setShowAddChefModal(false); // Fermeture propre de la modal
+                  
+                  // Rafraîchissement réactif de la grille graphique
+                  if (typeof chargerChefsCentre === 'function') {
+                    await chargerChefsCentre();
+                  }
+                }
+              } catch (err) {
+                console.error("❌ Échec d'écriture du Chef de centre :", err);
+                alert(`❌ Erreur : ${err.response?.data?.detail || "Impossible de sauvegarder sur le serveur central."}`);
+              }
+            }} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+              
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: '600', color: '#555' }}>Nom :</label>
+                <input name="nom" type="text" required placeholder="EX: RAKOTO" style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: '600', color: '#555' }}>Prénom :</label>
+                <input name="prenom" type="text" placeholder="EX: Jean" style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: '600', color: '#555' }}>Nom d'utilisateur (Username) :</label>
+                <input name="username" type="text" required placeholder="EX: chef_ambositra" style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: '600', color: '#555' }}>Téléphone :</label>
+                <input name="tel" type="text" placeholder="EX: +261 34 00 000 00" style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: '600', color: '#555' }}>Adresse Email :</label>
+                <input name="mail" type="email" placeholder="EX: chef@gmail.com" style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }} />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: '600', color: '#555' }}>Établissement d'Affectation :</label>
+                <select name="etablissement" required style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '5px', border: '1px solid #ccc', backgroundColor: '#fff' }}>
+                  <option value="">-- Sélectionner l'établissement --</option>
+                  {(listeEtablissements || etablissementsOptions || [
+                    { id_centre: 1, nom_etablissement: "LTP AMBOSITRA" },
+                    { id_centre: 2, nom_etablissement: "LTP FANDRIANA" },
+                    { id_centre: 3, nom_etablissement: "CFP AMBOSITRA" },
+                    { id_centre: 4, nom_etablissement: "LTP AMBATOFINANDRAHANA" }
+                  ]).map(etab => {
+                    const idEtab = etab.id_centre ?? etab.id_etablissement ?? etab.id;
+                    return (
+                      <option key={idEtab} value={idEtab}>
+                        {etab.nom_etablissement || etab.nom}
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                <button 
+                  type="button" 
+                  onClick={() => setShowAddChefModal(false)} 
+                  style={{ flex: 1, height: '42px', backgroundColor: '#f1f3f4', color: '#3c4043', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  Annuler
+                </button>
+                <button 
+                  type="submit" 
+                  style={{ flex: 2, height: '42px', backgroundColor: '#002f6c', color: '#ffffff', border: 'none', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}
+                >
+                  💾 Enregistrer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
                   
       {showAddEtablissement && (
