@@ -180,23 +180,7 @@ const DashboardAdmin = () => {
     setIsAuthorized(true);
   }, [navigate]);
 
-  const handleLogoutAdmin = () => {
-    if (window.confirm("🚪 Voulez-vous fermer votre session d'administration centrale ?")) {
-      localStorage.clear();
-      window.location.href = '/login';
-    }
-  };
-
-  if (!isAuthorized) {
-    return (
-      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f4f6f9', fontFamily: "'Poppins', sans-serif" }}>
-        <div style={{ textAlign: 'center', color: '#002f6c' }}>
-          <h3>🔒 Authentification de sécurité en cours...</h3>
-        </div>
-      </div>
-    );
-  }
-
+ 
   const chargerChefsCentre = async () => {
     try {
       const response = await API.get('/chefs-centre/liste');
@@ -1698,7 +1682,23 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
     }
   }, []);
 
-  
+   const handleLogoutAdmin = () => {
+    if (window.confirm("🚪 Voulez-vous fermer votre session d'administration centrale ?")) {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
+  };
+
+  if (!isAuthorized) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f4f6f9', fontFamily: "'Poppins', sans-serif" }}>
+        <div style={{ textAlign: 'center', color: '#002f6c' }}>
+          <h3>🔒 Authentification de sécurité en cours...</h3>
+        </div>
+      </div>
+    );
+  }
+
 
 
 
@@ -1711,18 +1711,45 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
         <div className="header-bar">
           <div className="header-title">
             <h1>Direction Régionale de l'Enseignement Technique</h1>
-            <button 
-              onClick={handleLogoutAdmin}
-              style={{ backgroundColor: '#c5221f', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', transition: 'background-color 0.2s' }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#a11b19'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#c5221f'}
-            >
-              🚪 Déconnexion Sécurisée
-            </button>
+           
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginLeft: '24rem' }}>
-            
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginLeft: '21rem' }}>
+            <button 
+              type="button"
+              onClick={handleLogoutAdmin}
+              style={{ 
+                background: '#ffffff', 
+                border: 'none', 
+                borderRadius: '50%', 
+                width: '40px', 
+                height: '40px', 
+                display: 'flex', 
+                alignItems: 'center', 
+                justifyContent: 'center', 
+                cursor: 'pointer',
+                boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+                transition: 'all 0.2s ease-in-out',
+                color: '#333333' 
+              }}
+              title="Fermer la session administrative"
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#f1f3f4';
+                e.currentTarget.style.transform = 'scale(1.05)';
+                e.currentTarget.style.color = '#c5221f'; 
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#ffffff';
+                e.currentTarget.style.transform = 'scale(1)';
+                e.currentTarget.style.color = '#333333';
+              }}
+            >
+              <svg viewBox="0 0 24 24" width="20" height="24" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                <line x1="12" y1="2" x2="12" y2="12"></line>
+              </svg>
+            </button>
+
             <div 
               onClick={() => {
                 setActiveMenu('resultat_etablissement'); 
