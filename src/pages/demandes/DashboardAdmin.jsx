@@ -6,7 +6,8 @@ import * as XLSX from 'xlsx';
 import API from '../../services/api'; 
 import './DashboardAdmin.css';
 import { 
-  LuUserPlus      
+  LuUserPlus,
+  LuFileSpreadsheet      
 } from 'react-icons/lu';
 import PortailPublic from './PortailPublic';
 
@@ -3663,6 +3664,39 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
 
                       return (
                         <div key={idChefUnique} style={{ backgroundColor: '#ffffff', borderRadius: '12px', overflow: 'visible', boxShadow: '0 4px 10px rgba(0,0,0,0.04)', border: '1px solid #eef2f5', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', position: 'relative' }}>
+                          <div style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 10 }}>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedChefEtabId(chef.id_etablissement);
+                                
+                                setTimeout(() => {
+                                  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+                                }, 100);
+                              }}
+                              style={{ 
+                                background: '#f1f3f4', 
+                                border: '1px solid #dadce0', 
+                                borderRadius: '6px', 
+                                padding: '5px', 
+                                cursor: 'pointer', 
+                                display: 'flex', 
+                                alignItems: 'center', 
+                                justifyContent: 'center',
+                                color: '#002f6c',
+                                transition: 'all 0.2s ease'
+                              }}
+                              title="Consulter le fichier / la liste des apprenants envoyée à distance"
+                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e3ecfa'; e.currentTarget.style.borderColor = '#1a73e8'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f1f3f4'; e.currentTarget.style.borderColor = '#dadce0'; }}
+                            >
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', cursor: 'pointer' }}>
+                                <div style={{ width: '18px', height: '3px', backgroundColor: '#333' }}></div>
+                                <div style={{ width: '18px', height: '3px', backgroundColor: '#333' }}></div>
+                                <div style={{ width: '18px', height: '3px', backgroundColor: '#333' }}></div>
+                              </div>
+                            </button>
+                          </div>
                           
                           <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}>
                             <button
@@ -3790,8 +3824,8 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                           display: 'flex',
                           alignItems: 'center',
                           gap: '12px',
-                          backgroundColor: '#fde8e8', // Fond rouge clair
-                          border: '1px solid #f8b4b4', // Bordure rouge
+                          backgroundColor: '#fde8e8', 
+                          border: '1px solid #f8b4b4', 
                           padding: '6px 14px',
                           borderRadius: '6px',
                           animation: 'scaleUpModal 0.2s ease-out'

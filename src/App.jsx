@@ -7,23 +7,35 @@ import SaisieNotes from './pages/examens/SaisieNotes';
 import SaisieCentreTerrain from './pages/examens/SaisieCentreTerrain';
 import AuthChefCentre from './pages/examens/AuthChefCentre';
 import PortailPublic from './pages/demandes/PortailPublic';
+import EspaceChefCentre from './pages/demandes/EspaceChefCentre';
 
 function App() {
+  const currentHostname = window.location.hostname;
+  const isUrlChefDeCentre = currentHostname.includes('chef-de-centre');
+
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<PortailPublic />} />
+        <Route 
+          path="/" 
+          element={
+            isUrlChefDeCentre ? (
+              <Navigate to="/login" replace />
+            ) : (
+              <PortailPublic />
+            )
+          } 
+        />
 
-        <Route path="/connexion-admin" element={<Login />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register-chef" element={<AuthChefCentre />} />
+        <Route path="/chef-de-centre" element={<EspaceChefCentre />} />
+        
         <Route path="/dashboard" element={<DashboardAdmin />} />
         <Route path="/demande-diplome" element={<DemandeClient />} />
-
         <Route path="/fiche-pv-examen" element={<SaisieCentreTerrain />} />
         <Route path="/saisie-notes" element={<SaisieNotes />} />
-        <Route path="/portail-terrain" element={<AuthChefCentre />} />
 
-        <Route path="/login" element={<Navigate to="/" replace />} />
-        
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Router>

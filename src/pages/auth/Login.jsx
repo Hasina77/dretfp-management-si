@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
-import API from '../../services/api'; // Utilisation de votre instance API centralisée
+import { useNavigate } from 'react-router-dom';
+import API from '../../services/api';
 import './Login.css'; 
 
 const Login = () => {
-  const [email, setEmail] = useState('');
+  const navigate = useNavigate();
+  const [usernameOrEmail, setUsernameOrEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -14,9 +16,8 @@ const Login = () => {
     setLoading(true);
 
     try {
-      // Encodage conforme à OAuth2PasswordRequestForm (Form-data urlencoded)
       const params = new URLSearchParams();
-      params.append('username', email); 
+      params.append('username', usernameOrEmail.trim()); 
       params.append('password', password);
 
       const response = await API.post('/auth/login', params, {
@@ -25,24 +26,31 @@ const Login = () => {
         }
       });
 
-      const { access_token, role } = response.data;
+      const { access_token, role, centre_affectation } = response.data;
 
-      // Stockage local persistant pour sécuriser les routes frontend
       localStorage.setItem('dretfp_token', access_token);
       localStorage.setItem('user_role', role);
+      
+      if (centre_affectation) {
+        localStorage.setItem('centre_affectation', centre_affectation);
+      }
 
-      // Routage dynamique basé sur les privilèges de l'acteur connecté
-      if (role === 'ADMIN_DRETFP' || role === 'AGENT_CENTRE') {
+      if (role === 'ADMIN_DRETFP') {
         window.location.href = '/dashboard';
+      } else if (role === 'AGENT_CENTRE') {
+        window.location.href = '/chef-de-centre';
       } else if (role === 'APPRENANT') {
-        window.location.href = '/demande-diplome';
+        window.location.href = '/';
+      } else {
+        setError("⚠️ Rôle applicatif non reconnu par le système central.");
       }
 
     } catch (err) {
+      console.error("❌ Échec d'authentification :", err);
       if (err.response && err.response.data) {
-        setError(err.response.data.detail || 'Identifiants ou mot de passe DRETFP incorrects.');
+        setError(err.response.data.detail || 'Identifiants ou mot de passe incorrects.');
       } else {
-        setError('Impossible de joindre le serveur central DRETFP. Vérifiez s\'il est allumé.');
+        setError('📡 Impossible de joindre le serveur central de la DRETFP. Vérifiez votre tunnel Ngrok.');
       }
     } finally {
       setLoading(false);
@@ -53,27 +61,28 @@ const Login = () => {
     <div className="login-container">
       <div className="login-card">
         <div className="login-header">
-          <h2>DRETFP </h2>
-          <p>Système d'Information Intégré</p>
+          <h2>DRETFP AMORON'I MANIA</h2>
+          <p>Système d'Information Intégré — Authentification</p>
         </div>
 
         <form onSubmit={handleSubmit} className="login-form">
           {error && <div className="error-message">{error}</div>}
 
           <div className="form-group">
-            <label htmlFor="email">Adresse E-mail Professionnelle ou Matricule</label>
+            <label htmlFor="usernameOrEmail">Adresse E-mail ou Identifiant (Username) *</label>
             <input
-              type="text" // Remplacé "email" par "text" pour autoriser la saisie des numéros matricules d'examen
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Ex: agent@dretfp.mg ou XXX-0000-XXX"
+              type="text"
+              id="usernameOrEmail"
+              value={usernameOrEmail}
+              onChange={(e) => setUsernameOrEmail(e.target.value)}
+              placeholder="Ex: admin@dretfp.mg ou chef_ambositra"
               required
+              disabled={loading}
             />
           </div>
 
           <div className="form-group">
-            <label htmlFor="password">Mot de passe</label>
+            <label htmlFor="password">Mot de passe *</label>
             <input
               type="password"
               id="password"
@@ -81,13 +90,18 @@ const Login = () => {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
+              disabled={loading}
             />
           </div>
 
           <button type="submit" className="btn-login" disabled={loading}>
-            {loading ? 'Connexion en cours...' : 'Se connecter'}
+            {loading ? 'Connexion en cours...' : '🔑 Se connecter au système'}
           </button>
         </form>
+
+        <div className="login-footer">
+          <p>Nouveau responsable de centre ? <span onClick={() => navigate('/register')} style={{ color: '#1a73e8', cursor: 'pointer', fontWeight: '600' }}>Activer votre compte terrain</span></p>
+        </div>
       </div>
     </div>
   );

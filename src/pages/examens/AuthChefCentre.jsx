@@ -1,48 +1,57 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import './AuthChefCentre.css';
+import { useNavigate } from 'react-router-dom';
+import API from '../../services/api';
+import './AuthChefCentre.css'; 
 
 const AuthChefCentre = () => {
-  const [isRegisterMode, setIsRegisterMode] = useState(false); 
+  const navigate = useNavigate();
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [centre, setCentre] = useState('Lycée Technique Fianarantsoa');
-  const [message, setMessage] = useState({ type: '', text: '' });
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setMessage({ type: '', text: '' });
+    setError('');
+    setSuccess('');
 
-    const baseUrl = 'https://loca.lt';
+    if (password !== confirmPassword) {
+      setError("❌ Les mots de passe saisis ne sont pas identiques.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setError("❌ Le mot de passe doit contenir au moins 6 caractères.");
+      return;
+    }
+
+    setLoading(true);
 
     try {
-      if (isRegisterMode) {
-        await axios.post(`${baseUrl}/register`, {
-          email: email,
-          password: password,
-          role: 'AGENT_CENTRE',
-          centre_affectation: centre
-        });
-        setMessage({ type: 'success', text: 'Compte Chef de Centre créé ! Veuillez vous connecter.' });
-        setIsRegisterMode(false);
-      } else {
-        const params = new URLSearchParams();
-        params.append('username', email);
-        params.append('password', password);
+      const payload = {
+        username: username.trim().toLowerCase(),
+        email: email.trim(),
+        password: password
+      };
 
-        const response = await axios.post(`${baseUrl}/login`, params, {
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
-        });
+      const response = await API.post('/auth/register-chef', payload);
 
-        localStorage.setItem('dretfp_token', response.data.access_token);
-        localStorage.setItem('chef_centre_etablissement', centre); 
-
-        window.location.href = '/saisie-centre-public';
+      if (response.data.status === 'success' || response.status === 201) {
+        setSuccess("🎉 Votre compte a été validé et créé avec succès ! Redirection...");
+        setTimeout(() => {
+          navigate('/login'); 
+        }, 3000);
       }
     } catch (err) {
-      setMessage({ type: 'error', text: err.response?.data?.detail || 'Une erreur est survenue.' });
+      console.error("❌ Échec de la création de compte :", err);
+      if (err.response && err.response.data) {
+        setError(err.response.data.detail || "Une erreur est survenue lors de l'inscription.");
+      } else {
+        setError("📡 Impossible de joindre le serveur central. Vérifiez votre connexion ou votre tunnel Ngrok.");
+      }
     } finally {
       setLoading(false);
     }
@@ -51,37 +60,75 @@ const AuthChefCentre = () => {
   return (
     <div className="auth-chef-container">
       <div className="auth-chef-card">
-        <h2>{isRegisterMode ? '📝 Créer un compte Chef de Centre' : '🔐 Connexion Portail Terrain'}</h2>
-        <p className="subtitle">Direction Régionale de l'Enseignement Technique</p>
+        <div className="auth-chef-header">
+          <h2>DRETFP Amoron'i Mania</h2>
+          <p>Enregistrement Initial des Chefs de Centre</p>
+        </div>
 
-        {message.text && <div className={`alert-box ${message.type}`}>{message.text}</div>}
+        <form onSubmit={handleRegister} className="auth-chef-form">
+          {error && <div className="error-alert">{error}</div>}
+          {success && <div className="success-alert">{success}</div>}
 
-        <form onSubmit={handleSubmit} className="auth-chef-form">
-          <div className="form-group-block">
-            <label>Adresse E-mail Officielle</label>
-            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Ex: chef.fianar@dretfp.mg" required />
+          <div className="form-group-chef">
+            <label htmlFor="username">Identifiant de dotation (Username officiel) *</label>
+            <input
+              type="text"
+              id="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Ex: chef_ambositra"
+              required
+              disabled={loading}
+            />
+            <small className="help-text">⚠️ Doit correspondre exactement à l'identifiant transmis par la Direction.</small>
           </div>
 
-          <div className="form-group-block">
-            <label>Mot de passe</label>
-            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
+          <div className="form-group-chef">
+            <label htmlFor="email">Adresse E-mail Professionnelle *</label>
+            <input
+              type="email"
+              id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Ex: responsable@centre.mg"
+              required
+              disabled={loading}
+            />
           </div>
 
-          <div className="form-group-block">
-            <label>Centre / Établissement d'Affectation</label>
-            <select value={centre} onChange={(e) => setCentre(e.target.value)}>
-              <option value="Lycée Technique Fianarantsoa">Lycée Technique Fianarantsoa</option>
-              <option value="CFP Ambalavao">CFP Ambalavao</option>
-            </select>
+          <div className="form-group-chef">
+            <label htmlFor="password">Définir un mot de passe *</label>
+            <input
+              type="password"
+              id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              disabled={loading}
+            />
           </div>
 
-          <button type="submit" className="btn-auth-submit" disabled={loading}>
-            {loading ? 'Traitement...' : isRegisterMode ? "S'inscrire et initialiser" : 'Se connecter au portail'}
+          <div className="form-group-chef">
+            <label htmlFor="confirmPassword">Confirmer le mot de passe *</label>
+            <input
+              type="password"
+              id="confirmPassword"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="••••••••"
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <button type="submit" className="btn-register-chef" disabled={loading}>
+            {loading ? "Vérification et création..." : "🔐 Activer mon espace distant"}
           </button>
         </form>
 
-        <div className="auth-toggle-link" onClick={() => setIsRegisterMode(!isRegisterMode)}>
-          {isRegisterMode ? 'Déjà un compte ? Connectez-vous' : "Première connexion ? Créez votre compte terrain"}
+        <div className="auth-chef-footer">
+          <p>Vous possédez déjà un compte ? <span onClick={() => navigate('/login')} style={{ color: '#1a73e8', cursor: 'pointer', fontWeight: '600' }}>Se connecter</span></p>
         </div>
       </div>
     </div>

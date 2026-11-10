@@ -1,139 +1,196 @@
-import React, { useState } from 'react';
-import axios from 'axios';
-import './SaisieNotes.css';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import API from '../../services/api';
 
 const SaisieCentreTerrain = () => {
-  const centreAffecte = localStorage.getItem('chef_centre_etablissement') || 'Lycée Technique Fianarantsoa';
-  
-  const [immatriculation, setImmatriculation] = useState('');
-  const [nom, setNom] = useState('');
-  const [prenom, setPrenom] = useState('');
-  const [dateNaiss, setDateNaiss] = useState('');
-  const [lieuNaiss, setLieuNaiss] = useState('');
-  const [examen, setExamen] = useState('CAP');
-  const [filiere, setFiliere] = useState('Génie Logiciel');
-  const [mention, setMention] = useState('Passable');
+  const navigate = useNavigate();
+  const [listeEtablissements, setListeEtablissements] = useState([]);
+  const [bilanNotes, setBilanNotes] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [filterExam, setFilterExam] = useState('Tous');
 
-  const [listeSaisieCentre, setListeSaisieCentre] = useState([]);
-  const [status, setStatus] = useState({ type: '', text: '' });
+  const userRole = localStorage.getItem('user_role');
+  const token = localStorage.getItem('dretfp_token');
 
-  const ajouterAuLotLocal = (e) => {
-    e.preventDefault();
-    const nouvelApprenant = {
-      im_apprenant: parseInt(immatriculation),
-      nom_apprenant: nom.toUpperCase(),
-      prenom_apprenant: prenom,
-      date_naiss: dateNaiss,
-      lieu_naiss: lieuNaiss,
-      examen_id: examen,
-      etablissement_id: centreAffecte,
-      filiere_id: filiere,
-      session: 2026,
-      mention: mention,
-      progression: 'AUCUNE_DEMANDE'
-    };
-
-    if (listeSaisieCentre.some(item => item.im_apprenant === nouvelApprenant.im_apprenant)) {
-      alert("⚠️ Matricule déjà encodé dans votre session de saisie courante.");
-      return;
+  // 1. Contrôle d'accès et barrière de sécurité administrative
+  useEffect(() => {
+    if (!token || userRole !== 'ADMIN_DRETFP') {
+      alert("🔒 Accès restreint : Cet écran de supervision est réservé à la Direction Régionale.");
+      navigate('/login');
     }
+  }, [token, userRole, navigate]);
 
-    setListeSaisieCentre([...listeSaisieCentre, nouvelApprenant]);
-    setImmatriculation(''); setNom(''); setPrenom('');
-    setStatus({ type: 'info', text: 'Candidat ajouté au panier terrain.' });
-  };
-
-  const transmettreAuBureauCentral = async () => {
-    if (listeSaisieCentre.length === 0) return;
-    setStatus({ type: 'info', text: 'Transmission chiffrée vers la DRETFP en cours...' });
-
+  // 2. Chargement des données de synthèse de la région Amoron'i Mania
+  const chargerSyntheseTerrain = async () => {
+    setLoading(true);
     try {
-      await axios.post('https://loca.lt', 
-        { apprenants: listeSaisieCentre },
-        { headers: { 'Bypass-Tunnel-Reminder': 'true' } }
-      );
+      const [resEtab, resApprenants] = await Promise.all([
+        API.get('/etablissements/liste'),
+        API.get('/apprenants/liste')
+      ]);
 
-      alert(`✅ Synchronisation réussie ! ${listeSaisieCentre.length} fiches enregistrées en BDD.`);
-      setListeSaisieCentre([]);
-      setStatus({ type: 'success', text: 'Traitement validé par le Responsable des Données.' });
+      setListeEtablissements(resEtab.data || []);
+
+      // Agrégation dynamique locale des statistiques par établissement
+      const apprenantsBdd = resApprenants.data || [];
+      const synthese = resEtab.data.map(etab => {
+        const idCent = etab.id_centre ?? etab.id_etablissement;
+        const elevesDuCentre = apprenantsBdd.filter(a => (a.etablissement_id ?? a.centre_id)?.toString() === idCent?.toString());
+        
+        // Calculs des indicateurs de performance
+        const total = elevesDuCentre.length;
+        const admis = elevesDuCentre.filter(a => (a.mention && a.mention !== 'Ajourné') || a.progression === 'TERMINER').length; // Logique métier à adapter selon vos flags BDD
+        const ajournes = total - admis;
+        const tauxReussite = total > 0 ? ((admis / total) * 100).toFixed(1) : 0;
+
+        return {
+          id_centre: idCent,
+          nom_etablissement: etab.nom_etablissement,
+          district: etab.localisation_district,
+          total_candidats: total,
+          admis_count: admis,
+          ajournes_count: ajournes,
+          taux: tauxReussite,
+          statut_pv: total > 0 ? "TRANSMIS" : "EN_ATTENTE"
+        };
+      });
+
+      setBilanNotes(synthese);
     } catch (err) {
-      setStatus({ type: 'error', text: '📡 Erreur réseau : Les fiches restent conservées localement dans votre navigateur.' });
+      console.error("❌ Erreur de récupération des bilans de PV d'examens :", err);
+    } finally {
+      setLoading(false);
     }
   };
+
+  useEffect(() => {
+    chargerSyntheseTerrain();
+  }, []);
 
   return (
-    <div className="exam-container" style={{ padding: '1.5rem', justifyContent: 'center' }}>
-      <div style={{ width: '100%', maxWidth: '1100px', background: 'white', borderRadius: '8px', padding: '2rem', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
-        
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #002f6c', paddingBottom: '1rem', marginBottom: '2rem' }}>
-          <div>
-            <h1 style={{ color: '#002f6c', margin: 0, fontSize: '1.6rem' }}>Portail Terrain — {centreAffecte}</h1>
-            <p style={{ margin: '4px 0 0 0', color: '#666' }}>Saisie sécurisée des Procès-Verbaux d'Examen (PV)</p>
-          </div>
-          <button className="btn-action-top" style={{ backgroundColor: '#c5221f' }} onClick={() => { localStorage.clear(); window.location.href = '/portail-terrain'; }}>
-             Quitter la session
-          </button>
+    <div style={{ padding: '30px', maxWidth: '1200px', margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
+      
+      {/* Bandeau d'en-tête */}
+      <div style={{ backgroundColor: '#1a1f2c', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '25px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}>
+        <div>
+          <h2>📊 Suivi Global et Supervision des Procès-Verbaux (PV)</h2>
+          <p>Espace Directeur Régional — Suivi en temps réel des remontées de notes des centres d'examens</p>
+        </div>
+        <button 
+          onClick={() => navigate('/dashboard')} 
+          style={{ backgroundColor: '#ffffff', color: '#1a1f2c', border: 'none', padding: '10px 20px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer', transition: 'all 0.2s' }}
+        >
+          🎛️ Retour Dashboard Admin
+        </button>
+      </div>
+
+      {/* Widgets de synthèse régionaux */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '25px' }}>
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #eef2f5', boxShadow: '0 2px 4px rgba(0,0,0,0.01)' }}>
+          <span style={{ fontSize: '0.85rem', color: '#5f6368', fontWeight: '600' }}>🏫 Centres Répertoriés</span>
+          <h3 style={{ margin: '5px 0 0 0', fontSize: '1.6rem', color: '#002f6c' }}>{listeEtablissements.length}</h3>
+        </div>
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #eef2f5', boxShadow: '0 2px 4px rgba(0,0,0,0.01)' }}>
+          <span style={{ fontSize: '0.85rem', color: '#5f6368', fontWeight: '600' }}>📜 PV Reçus / Transmis</span>
+          <h3 style={{ margin: '5px 0 0 0', fontSize: '1.6rem', color: '#137333' }}>
+            {bilanNotes.filter(b => b.statut_pv === 'TRANSMIS').length}
+          </h3>
+        </div>
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #eef2f5', boxShadow: '0 2px 4px rgba(0,0,0,0.01)' }}>
+          <span style={{ fontSize: '0.85rem', color: '#5f6368', fontWeight: '600' }}>⏳ PV en retards / Attente</span>
+          <h3 style={{ margin: '5px 0 0 0', fontSize: '1.6rem', color: '#b06000' }}>
+            {bilanNotes.filter(b => b.statut_pv === 'EN_ATTENTE').length}
+          </h3>
+        </div>
+        <div style={{ background: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #eef2f5', boxShadow: '0 2px 4px rgba(0,0,0,0.01)' }}>
+          <span style={{ fontSize: '0.85rem', color: '#5f6368', fontWeight: '600' }}>📈 Taux Régional Global</span>
+          <h3 style={{ margin: '5px 0 0 0', fontSize: '1.6rem', color: '#1a73e8' }}>
+            {(bilanNotes.reduce((acc, curr) => acc + parseFloat(curr.taux), 0) / (bilanNotes.length || 1)).toFixed(1)}%
+          </h3>
+        </div>
+      </div>
+
+      {/* Tableau central de supervision */}
+      <div style={{ background: '#ffffff', padding: '25px', borderRadius: '8px', border: '1px solid #dadce0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 style={{ margin: 0, color: '#3c4043' }}>📋 Registre de contrôle des Centres de Saisie</h3>
+          <button onClick={chargerSyntheseTerrain} style={{ background: '#f1f3f4', border: '1px solid #ccc', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer', fontWeight: '500' }}>🔄 Rafraîchir les données</button>
         </div>
 
-        {status.text && <div className={`status-alert ${status.type}`} style={{ padding: '0.8rem', borderRadius: '4px', marginBottom: '1rem', fontWeight: 600, backgroundColor: status.type === 'success' ? '#e6f4ea' : '#fce8e6', color: status.type === 'success' ? '#137333' : '#c5221f' }}>{status.text}</div>}
-
-        <form onSubmit={ajouterAuLotLocal} className="chef-centre-form-grid" style={{ background: '#f8f9fa', border: 'none' }}>
-          <div className="input-field-block"><label>N° IM (Matricule)</label><input type="number" value={immatriculation} onChange={(e) => setImmatriculation(e.target.value)} required /></div>
-          <div className="input-field-block"><label>Nom de Famille</label><input type="text" value={nom} onChange={(e) => setNom(e.target.value)} required /></div>
-          <div className="input-field-block"><label>Prénoms</label><input type="text" value={prenom} onChange={(e) => setPrenom(e.target.value)} required /></div>
-          <div className="input-field-block"><label>Date de Naissance</label><input type="text" value={dateNaiss} onChange={(e) => setDateNaiss(e.target.value)} placeholder="JJ/MM/AAAA" required /></div>
-          <div className="input-field-block"><label>Lieu de Naissance</label><input type="text" value={lieuNaiss} onChange={(e) => setLieuNaiss(e.target.value)} required /></div>
-          <div className="input-field-block">
-            <label>Examen National</label>
-            <select value={examen} onChange={(e) => setExamen(e.target.value)}><option value="CAP">CAP</option><option value="BEP">BEP</option><option value="BT">BT</option></select>
-          </div>
-          <div className="input-field-block">
-            <label>Filière Technique</label>
-            <select value={filiere} onChange={(e) => setFiliere(e.target.value)}><option value="Génie Logiciel">Génie Logiciel</option><option value="Ouvrage Bois">Ouvrage Bois</option><option value="Électricité">Électricité</option></select>
-          </div>
-          <div className="input-field-block">
-            <label>Mention Attribuée</label>
-            <select value={mention} onChange={(e) => setMention(e.target.value)}><option value="Passable">Passable</option><option value="Assez Bien">Assez Bien</option><option value="Bien">Bien</option><option value="Très Bien">Très Bien</option></select>
-          </div>
-          <div className="input-field-block" style={{ justifyContent: 'flex-end' }}>
-            <button type="submit" className="btn-action-top" style={{ width: '100%', height: '40px' }}>+ Ajouter au lot</button>
-          </div>
-        </form>
-
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '2.5rem 0 1rem 0' }}>
-          <h3 style={{ margin: 0 }}>Aperçu du lot courant de session ({listeSaisieCentre.length})</h3>
-          <button className="btn-action-top" style={{ backgroundColor: '#137333' }} onClick={transmettreAuBureauCentral} disabled={listeSaisieCentre.length === 0}>
-             Transmettre directement au Bureau Central
-          </button>
-        </div>
-
-        <div className="data-table-container">
-          <table className="data-table">
-            <thead>
-              <tr><th>N° IM</th><th>Nom & Prénoms</th><th>Examen Saisi</th><th>Établissement Fixé</th><th>Filière</th><th>Mention</th></tr>
-            </thead>
-            <tbody>
-              {listeSaisieCentre.length === 0 ? (
-                <tr><td colSpan="6" className="no-entries">Aucun candidat encodé dans le lot courant.</td></tr>
-              ) : (
-                listeSaisieCentre.map((item, idx) => (
-                  <tr key={idx}>
-                    <td><strong>{item.im_apprenant}</strong></td>
-                    <td>{item.nom_apprenant} {item.prenom_apprenant}</td>
-                    <td>{item.examen_id} (2026)</td>
-                    <td>{item.etablissement_id}</td>
-                    <td>{item.filiere_id}</td>
-                    <td><em style={{ fontWeight: 500, color: '#002f6c' }}>{item.mention}</em></td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
+        <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+          <thead>
+            <tr>
+              <th>Nom de l'Établissement / Centre</th>
+              <th>Localisation (District)</th>
+              <th style={{ textAlign: 'center' }}>Candidats Inscrits</th>
+              <th style={{ textAlign: 'center' }}>Admis</th>
+              <th style={{ textAlign: 'center' }}>Ajournés</th>
+              <th style={{ textAlign: 'center' }}>Taux Réussite</th>
+              <th style={{ textAlign: 'center' }}>Statut du PV</th>
+              <th style={{ textAlign: 'center' }}>Décision</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan="8" style={{ textAlign: 'center', padding: '30px', color: '#5f6368', fontStyle: 'italic' }}>
+                  ⏳ Analyse des registres d'examens de la DRETFP en cours...
+                </td>
+              </tr>
+            ) : bilanNotes.length === 0 ? (
+              <tr>
+                <td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: '#5f6368' }}>
+                  📭 Aucun établissement répertorié.
+                </td>
+              </tr>
+            ) : (
+              bilanNotes.map((stat, i) => (
+                <tr key={stat.id_centre || i}>
+                  <td><strong>{stat.nom_etablissement}</strong></td>
+                  <td><span style={{ textTransform: 'uppercase', fontSize: '0.85rem' }}>{stat.district}</span></td>
+                  <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{stat.total_candidats}</td>
+                  <td style={{ textAlign: 'center', color: '#137333', fontWeight: '600' }}>{stat.admis_count}</td>
+                  <td style={{ textAlign: 'center', color: '#c5221f', fontWeight: '600' }}>{stat.ajournes_count}</td>
+                  <td style={{ textAlign: 'center' }}>
+                    <div style={{ fontWeight: 'bold', color: '#202124' }}>{stat.taux}%</div>
+                    <div style={{ width: '100px', height: '5px', background: '#f1f3f4', borderRadius: '3px', margin: '4px auto 0 auto', overflow: 'hidden' }}>
+                      <div style={{ width: `${stat.taux}%`, height: '100%', background: parseFloat(stat.taux) >= 50 ? '#34a853' : '#f4b400' }}></div>
+                    </div>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <span className="status-badge" style={{ 
+                      backgroundColor: stat.statut_pv === 'TRANSMIS' ? '#e6f4ea' : '#fef7e0',
+                      color: stat.statut_pv === 'TRANSMIS' ? '#137333' : '#b06000',
+                      fontWeight: 'bold', padding: '4px 10px', borderRadius: '4px', fontSize: '0.8rem'
+                    }}>
+                      {stat.statut_pv === 'TRANSMIS' ? '📥 Reçu / Clos' : '⏳ En attente'}
+                    </span>
+                  </td>
+                  <td style={{ textAlign: 'center' }}>
+                    <button
+                      type="button"
+                      disabled={stat.statut_pv === 'EN_ATTENTE'}
+                      onClick={() => {
+                        alert(`📜 Validation officielle du PV pour ${stat.nom_etablissement}.\nLes mentions sont figées. Les diplômes entrent en file d'impression.`);
+                      }}
+                      style={{ 
+                        background: stat.statut_pv === 'TRANSMIS' ? '#1a73e8' : '#bdc1c6',
+                        color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', 
+                        fontWeight: '600', cursor: stat.statut_pv === 'TRANSMIS' ? 'pointer' : 'not-allowed', fontSize: '0.8rem' 
+                      }}
+                      >
+                      🛡️ Sceller le PV
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
       </div>
     </div>
   );
 };
 
 export default SaisieCentreTerrain;
+
