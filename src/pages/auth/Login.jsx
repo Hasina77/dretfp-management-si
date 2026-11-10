@@ -28,22 +28,23 @@ const Login = () => {
 
       const { access_token, role, centre_affectation } = response.data;
 
+      const roleSecurise = role ? role.trim().toUpperCase() : '';
+
       localStorage.setItem('dretfp_token', access_token);
-      localStorage.setItem('user_role', role);
-      
+      localStorage.setItem('user_role', roleSecurise);
+
       if (centre_affectation) {
         localStorage.setItem('centre_affectation', centre_affectation);
       }
 
-      if (role === 'ADMIN_DRETFP') {
+      if (roleSecurise === 'ADMIN_DRETFP') {
         window.location.href = '/dashboard';
-      } else if (role === 'AGENT_CENTRE') {
+      } else if (roleSecurise === 'AGENT_CENTRE') {
         window.location.href = '/chef-de-centre';
-      } else if (role === 'APPRENANT') {
-        window.location.href = '/';
       } else {
-        setError("⚠️ Rôle applicatif non reconnu par le système central.");
+        setError(`⚠️ Rôle applicatif [${role}] non reconnu par le système central.`);
       }
+
 
     } catch (err) {
       console.error("❌ Échec d'authentification :", err);
