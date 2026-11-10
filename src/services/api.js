@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const API = axios.create({
-  baseURL: '/api', 
+  baseURL: 'https://purplish-smother-germicide.ngrok-free.dev/api',  
   headers: {
     'Content-Type': 'application/json'
   }
@@ -12,7 +12,13 @@ API.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  
+  config.headers['ngrok-skip-browser-warning'] = 'true';
+  
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
 export default API;
+
