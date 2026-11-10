@@ -4,13 +4,14 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import AuthChefCentre from './pages/examens/AuthChefCentre';
 import EspaceChefCentre from './pages/demandes/EspaceChefCentre';
 import SaisieNotes from './pages/examens/SaisieNotes';
-import './index.css'; 
+import './index.css';
 
 const AppChef = () => {
   return (
     <Router>
       <Routes>
         <Route path="/" element={<AuthChefCentre />} />
+        
         <Route path="/register-chef" element={<AuthChefCentre />} />
         <Route path="/chef-de-centre" element={<EspaceChefCentre />} />
         <Route path="/saisie-notes" element={<SaisieNotes />} />
