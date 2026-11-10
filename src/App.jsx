@@ -20,23 +20,33 @@ function App() {
           path="/" 
           element={
             isUrlChefDeCentre ? (
-              <Navigate to="/login" replace />
+              <Navigate to="/register-chef" replace />
             ) : (
               <PortailPublic />
             )
           } 
         />
 
-        <Route path="/login" element={<Login />} />
-        <Route path="/register-chef" element={<AuthChefCentre />} />
+        <Route path="/login" element={<Login />} /> 
+        <Route path="/register-chef" element={<AuthChefCentre />} /> 
+
+        <Route path="/dashboard" element={<DashboardAdmin />} />
         <Route path="/chef-de-centre" element={<EspaceChefCentre />} />
         
-        <Route path="/dashboard" element={<DashboardAdmin />} />
         <Route path="/demande-diplome" element={<DemandeClient />} />
         <Route path="/fiche-pv-examen" element={<SaisieCentreTerrain />} />
         <Route path="/saisie-notes" element={<SaisieNotes />} />
 
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route 
+          path="*" 
+          element={
+            isUrlChefDeCentre ? (
+              <Navigate to="/register-chef" replace />
+            ) : (
+              <Navigate to="/" replace />
+            )
+          } 
+        />
       </Routes>
     </Router>
   );
