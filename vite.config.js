@@ -20,8 +20,8 @@ export default defineConfig({
   build: {
     rollupOptions: {
       input: {
-        main: resolve(__dirname, 'index.html'), 
-        chef: resolve(__dirname, 'chef.html')   
+        main: resolve(import.meta.dirname, 'index.html'), 
+        chef: resolve(import.meta.dirname, 'chef.html')   
       }
     }
   }
