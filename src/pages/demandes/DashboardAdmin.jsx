@@ -20,7 +20,6 @@ ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointE
 const DashboardAdmin = () => {
 
 
-
   const navigate = useNavigate();
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   
@@ -164,6 +163,39 @@ const DashboardAdmin = () => {
   const partGlobaleDemandeurs = ((totalGlobalDemandes / effectifTotalApprenants) * 100).toFixed(1);
 
  
+
+  const [isAuthorized, setIsAuthorized] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('dretfp_token');
+    const role = localStorage.getItem('user_role');
+
+    if (!token || role !== 'ADMIN_DRETFP') {
+      alert("🔒 Accès interdit : Session expirée ou privilèges insuffisants.");
+      localStorage.clear();
+      navigate('/login', { replace: true });
+      return;
+    }
+
+    setIsAuthorized(true);
+  }, [navigate]);
+
+  const handleLogoutAdmin = () => {
+    if (window.confirm("🚪 Voulez-vous fermer votre session d'administration centrale ?")) {
+      localStorage.clear();
+      window.location.href = '/login';
+    }
+  };
+
+  if (!isAuthorized) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#f4f6f9', fontFamily: "'Poppins', sans-serif" }}>
+        <div style={{ textAlign: 'center', color: '#002f6c' }}>
+          <h3>🔒 Authentification de sécurité en cours...</h3>
+        </div>
+      </div>
+    );
+  }
 
   const chargerChefsCentre = async () => {
     try {
@@ -1679,6 +1711,14 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
         <div className="header-bar">
           <div className="header-title">
             <h1>Direction Régionale de l'Enseignement Technique</h1>
+            <button 
+              onClick={handleLogoutAdmin}
+              style={{ backgroundColor: '#c5221f', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', fontWeight: 'bold', cursor: 'pointer', transition: 'background-color 0.2s' }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#a11b19'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#c5221f'}
+            >
+              🚪 Déconnexion Sécurisée
+            </button>
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginLeft: '24rem' }}>
