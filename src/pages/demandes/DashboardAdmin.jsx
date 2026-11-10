@@ -3734,7 +3734,8 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                                   
                                   const numNettoye = chef.tel_chefcentre.replace(/\s+/g, '').replace('+', '').replace(/-/g, '');
                                   
-                                  const texteWhatsapp = `🏛️ *DRETFP AMORON'I MANIA*\n\nBonjour ${chef.nom_chefcentre} ${chef.prenom_chefcentre || ''},\n\nVoici votre lien d'accès sécurisé à distance pour enregistrer et valider les notes des apprenants de votre établissement :\n\n🔗 *Lien d'accès :* ${window.location.origin}/login\n\nVotre identifiant unique obligatoire (Username) : *${chef.username}*\n\nLe Responsable de la Direction Régionale.`;
+                                  const texteWhatsapp = `🏛️ *DRETFP AMORON'I MANIA *\n\nBonjour M. le Chef de Centre,\n\nVoici votre portail d'accès sécurisé à distance pour enregistrer les fiches candidats et notes de votre établissement :\n\n🔗 *Portail Terrain :* https://onrender.com\n\nVotre identifiant unique d'accès : *${chef.username}*\n\nDirection Régionale.`;
+
                                   const messageCode = encodeURIComponent(texteWhatsapp);
                                   
                                   const urlComplete = "https://wa.me/" + numNettoye + "?text=" + messageCode;
