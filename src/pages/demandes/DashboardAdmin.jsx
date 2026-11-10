@@ -26,7 +26,16 @@ const DashboardAdmin = () => {
   const [openMenuId, setOpenMenuId] = useState(null);
   const [selectedApprenant, setSelectedApprenant] = useState(null);
   const [modalMode, setModalMode] = useState('');
-  const [activeMenu, setActiveMenu] = useState('dashboard');
+
+  const [activeMenu, setActiveMenu] = useState(() => {
+    return sessionStorage.getItem('admin_active_tab') || 'dashboard';
+    });
+
+    useEffect(() => {
+      sessionStorage.setItem('admin_active_tab', activeMenu);
+    }, [activeMenu]);
+
+
 
   const [listeEtablissements, setListeEtablissements] = useState([]);
   const [listeSecteurs, setListeSecteurs] = useState([]);
@@ -1685,9 +1694,12 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
    const handleLogoutAdmin = () => {
     if (window.confirm("🚪 Voulez-vous fermer votre session d'administration centrale ?")) {
       localStorage.clear();
-      window.location.href = '/login';
+      sessionStorage.clear();
+
+      window.location.replace('/login');
     }
   };
+
 
   if (!isAuthorized) {
     return (
@@ -1714,84 +1726,100 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
            
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginLeft: '21rem' }}>
-            <button 
-              type="button"
-              onClick={handleLogoutAdmin}
-              style={{ 
-                background: '#ffffff', 
-                border: 'none', 
-                borderRadius: '50%', 
-                width: '40px', 
-                height: '40px', 
-                display: 'flex', 
-                alignItems: 'center', 
-                justifyContent: 'center', 
-                cursor: 'pointer',
-                boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
-                transition: 'all 0.2s ease-in-out',
-                color: '#333333' 
-              }}
-              title="Fermer la session administrative"
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#f1f3f4';
-                e.currentTarget.style.transform = 'scale(1.05)';
-                e.currentTarget.style.color = '#c5221f'; 
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#ffffff';
-                e.currentTarget.style.transform = 'scale(1)';
-                e.currentTarget.style.color = '#333333';
-              }}
-            >
-              <svg viewBox="0 0 24 24" width="20" height="24" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
-                <line x1="12" y1="2" x2="12" y2="12"></line>
-              </svg>
-            </button>
+          <div className="header-bar" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+             
+              <button 
+                type="button"
+                onClick={handleLogoutAdmin}
+                style={{ 
+                  background: '#ffffff', 
+                  border: 'none', 
+                  borderRadius: '50%', 
+                  width: '35px', 
+                  height: '35px', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+                  transition: 'all 0.2s ease-in-out',
+                  color: '#333333' 
+                }}
+                title="Fermer la session administrative"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f1f3f4';
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.color = '#c5221f'; 
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#ffffff';
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.color = '#333333';
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="20" height="24" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+                  <line x1="12" y1="2" x2="12" y2="12"></line>
+                </svg>
+              </button>
 
-            <div 
-              onClick={() => {
-                setActiveMenu('resultat_etablissement'); 
-                setNotifChefsCount(0); 
-              }}
-              style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '8px', borderRadius: '50%', background: notifChefsCount > 0 ? '#fde8e8' : '#f1f3f4', transition: 'all 0.2s' }}
-              title={notifChefsCount > 0 ? `🔔 ${notifChefsCount} fiches candidats reçues du terrain !` : "Aucune notification"}
-            >
-              <span >🔔</span>
-              {notifChefsCount > 0 && (
-                <span 
-                  style={{
-                    position: 'absolute', top: '-4px', right: '-4px',
-                    backgroundColor: '#e53e3e', color: '#ffffff',
-                    fontSize: '0.75rem', fontWeight: 'bold',
-                    padding: '2px 6px', borderRadius: '10px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
-                    animation: 'scaleUpModal 0.3s ease-out'
-                  }}
-                >
-                  {notifChefsCount}
-                </span>
-              )}
-            </div>
-            </div>
+              <div 
+                onClick={() => {
+                  setActiveMenu('resultat_etablissement'); 
+                  setNotifChefsCount(0); 
+                }}
+                style={{ 
+                  position: 'relative', 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center',
+                  width: '35px',
+                  height: '35px',
+                  borderRadius: '50%', 
+                  background: notifChefsCount > 0 ? '#fde8e8' : '#f1f3f4', 
+                  transition: 'all 0.2s',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.05)'
+                }}
+                title={notifChefsCount > 0 ? `🔔 ${notifChefsCount} fiches candidats reçues du terrain !` : "Aucune notification"}
+              >
+                <span style={{ fontSize: '1.1rem' }}>🔔</span>
+                {notifChefsCount > 0 && (
+                  <span 
+                    style={{
+                      position: 'absolute', top: '-4px', right: '-4px',
+                      backgroundColor: '#e53e3e', color: '#ffffff',
+                      fontSize: '0.75rem', fontWeight: 'bold',
+                      padding: '2px 6px', borderRadius: '10px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.15)',
+                      animation: 'scaleUpModal 0.3s ease-out'
+                    }}
+                  >
+                    {notifChefsCount}
+                  </span>
+                )}
+              </div>
 
-            <button 
-              type="button"
-              className="btn-demandes-en-ligne"
-              onClick={() => {
-                setActiveMenu('demandes_en_ligne'); 
-                
-                if (typeof setOpenMenuId === 'function') setOpenMenuId(null);
-              }}
-              style={{ 
-                backgroundColor: '#1a73e8', color: '#ffffff', border: 'none', 
-                borderRadius: '4px', padding: '10px 16px', fontWeight: 'bold', 
-                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px' 
-              }}
-            >
-              🌐 Demandes en Ligne
-            </button>
+              <button 
+                type="button"
+                className="btn-demandes-en-ligne"
+                onClick={() => {
+                  setActiveMenu('demandes_en_ligne'); 
+                  if (typeof setOpenMenuId === 'function') setOpenMenuId(null);
+                }}
+                style={{ 
+                  backgroundColor: '#1a73e8', color: '#ffffff', border: 'none', 
+                  borderRadius: '6px', padding: '0 16px', fontWeight: 'bold', 
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px',
+                  height: '36px', boxShadow: '0 2px 5px rgba(26,115,232,0.2)',
+                  transition: 'background-color 0.2s'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1557b0'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#1a73e8'; }}
+              >
+                🌐 Demandes en Ligne
+              </button>
+            </div>
 
         </div>
 
