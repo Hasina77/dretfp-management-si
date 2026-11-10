@@ -1,3 +1,14 @@
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Login from './pages/auth/Login';
+import DemandeClient from './pages/demandes/DemandeClient'; 
+import DashboardAdmin from './pages/demandes/DashboardAdmin';
+import SaisieNotes from './pages/examens/SaisieNotes';
+import SaisieCentreTerrain from './pages/examens/SaisieCentreTerrain';
+import AuthChefCentre from './pages/examens/AuthChefCentre';
+import PortailPublic from './pages/demandes/PortailPublic';
+import EspaceChefCentre from './pages/demandes/EspaceChefCentre';
+
 function App() {
   const currentHostname = window.location.hostname;
   const isUrlChefDeCentre = 
