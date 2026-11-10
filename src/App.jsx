@@ -10,10 +10,8 @@ import PortailPublic from './pages/demandes/PortailPublic';
 import EspaceChefCentre from './pages/demandes/EspaceChefCentre';
 
 function App() {
-  const currentHostname = window.location.hostname;
-  const isUrlChefDeCentre = currentHostname.includes('chef-de-centre');
-  const isEnvChefDeCentre = import.meta.env.VITE_APP_MODE === 'CHEF_TERRAIN';
-  const isModeChefTerrain = isUrlChefDeCentre || isEnvChefDeCentre;
+  const currentUrl = window.location.href;
+  const isUrlChefDeCentre = currentUrl.includes('chef-de-centre.onrender.com');
 
   return (
     <Router>
@@ -21,7 +19,7 @@ function App() {
         <Route 
           path="/" 
           element={
-            isModeChefTerrain ? (
+            isUrlChefDeCentre ? (
               <Navigate to="/register-chef" replace />
             ) : (
               <PortailPublic />
@@ -29,10 +27,21 @@ function App() {
           } 
         />
 
-        <Route path="/login" element={<Login />} />  
-        <Route path="/register-chef" element={<AuthChefCentre />} /> 
-        <Route path="/chef-de-centre" element={<EspaceChefCentre />} />
+        <Route 
+          path="/login" 
+          element={
+            isUrlChefDeCentre ? <Navigate to="/register-chef" replace /> : <Login />
+          } 
+        />
         
+        <Route 
+          path="/register-chef" 
+          element={
+            !isUrlChefDeCentre ? <Navigate to="/login" replace /> : <AuthChefCentre />
+          } 
+        />
+
+        <Route path="/chef-de-centre" element={<EspaceChefCentre />} />
         <Route path="/dashboard" element={<DashboardAdmin />} />
         <Route path="/demande-diplome" element={<DemandeClient />} />
         <Route path="/fiche-pv-examen" element={<SaisieCentreTerrain />} />
@@ -40,7 +49,7 @@ function App() {
 
         <Route 
           path="*" 
-          element={<Navigate to={isModeChefTerrain ? "/register-chef" : "/"} replace />} 
+          element={<Navigate to={isUrlChefDeCentre ? "/register-chef" : "/"} replace />} 
         />
       </Routes>
     </Router>
