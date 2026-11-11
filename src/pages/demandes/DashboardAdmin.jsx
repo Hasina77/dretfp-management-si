@@ -5,15 +5,18 @@ import Sidebar from '/src/components/Sidebar';
 import * as XLSX from 'xlsx';
 import API from '../../services/api'; 
 import './DashboardAdmin.css';
-import { 
-  LuUserPlus,
-  LuFileSpreadsheet      
-} from 'react-icons/lu';
 import PortailPublic from './PortailPublic';
 
-
+import { 
+  LuUserPlus,
+  LuHistory     
+} from 'react-icons/lu';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement } from 'chart.js';
 import { Pie, Doughnut, Line } from 'react-chartjs-2';
+import { 
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, 
+  PieChart, Cell, LineChart, CartesianGrid, LabelList 
+} from 'recharts';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, PointElement, LineElement);
 
@@ -67,6 +70,8 @@ const DashboardAdmin = () => {
   const [demandesListeCochees, setDemandesListeCochees] = useState([]);
   const [demandesEnLigneCochees, setDemandesEnLigneCochees] = useState([]);
 
+  const [showDetailsEvolution, setShowDetailsEvolution] = useState(false);
+
   const [showAddChefModal, setShowAddChefModal] = useState(false);
   const [chefsCentre, setChefsCentre] = useState([]);
   const [openChefMenuId, setOpenChefMenuId] = useState(null);
@@ -92,6 +97,20 @@ const DashboardAdmin = () => {
     return () => clearInterval(intervalle); 
   }, []);
 
+
+  const [listeExamensDashboard, setListeExamensDashboard] = useState([]);
+
+    useEffect(() => {
+      const chargerExamensPourStats = async () => {
+        try {
+          const res = await API.get('/examens/liste');
+          setListeExamensDashboard(res.data || []);
+        } catch (err) {
+          console.error("Erreur chargement examens dashboard :", err);
+        }
+      };
+      chargerExamensPourStats();
+    }, []);
 
   const [openDemandeMenuId, setOpenDemandeMenuId] = useState(null);
   const [openTraitementMenuId, setOpenTraitementMenuId] = useState(null);
@@ -227,6 +246,42 @@ const DashboardAdmin = () => {
         chargerHistorique();
       }
     }, [activeMenu]);
+
+    const [selectedHistoriqueIds, setSelectedHistoriqueIds] = useState([]);
+
+    const handleToggleSelectHistorique = (id) => {
+      setSelectedHistoriqueIds((prev) =>
+        prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+      );
+    };
+
+    const handleSelectAllHistorique = (e) => {
+      if (e.target.checked) {
+        setSelectedHistoriqueIds(listeHistorique.map((item) => item.id_historique));
+      } else {
+        setSelectedHistoriqueIds([]);
+      }
+    };
+
+    const handleSupprimerHistoriqueSelection = async () => {
+      if (selectedHistoriqueIds.length === 0) return;
+
+      if (!window.confirm(`🗑️ Voulez-vous supprimer définitivement ces ${selectedHistoriqueIds.length} événement(s) de l'historique ?`)) {
+        return;
+      }
+
+      try {
+        await API.post('/historique/supprimer-selection', {
+          ids: selectedHistoriqueIds
+        });
+        setSelectedHistoriqueIds([]);
+        chargerHistorique();
+        alert("✅ Événements sélectionnés supprimés avec succès.");
+      } catch (err) {
+        console.error("Erreur lors de la suppression :", err);
+        alert("❌ Impossible de supprimer la sélection.");
+      }
+    };
 
 
    const chargerNomenclaturesBdd = async () => {
@@ -1732,6 +1787,8 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
 
 
 
+
+
   return (
     <div className="dashboard-container">
         <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} notifCount={notifCount} setNotifCount={setNotifCount} filterType={filterType} setFilterType={setFilterType} demandes={demandes} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
@@ -1843,42 +1900,323 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
         <div className="content-body">
 
           
-          {activeMenu === 'dashboard' && (
-            <div className="dashboard-layout-main" style={{ display: 'flex', gap: '1.5rem' }}>
-              <div style={{ flex: 2, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ background: 'white', padding: '1.5rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                  <h4>Taux de démarche des diplômés</h4>
-                  <div style={{ height: '180px', display: 'flex', justifyContent: 'center' }}>
-                    <Pie data={{ labels: ['Fait', 'Aucune'], datasets: [{ data: [partDiplomesAyantDemande, 100 - partDiplomesAyantDemande], backgroundColor: ['#002f6c', '#dadce0'] }] }} options={{ maintainAspectRatio: false }} />
+          {activeMenu === 'dashboard' && (() => {
+            const safeApprenants = typeof apprenants !== 'undefined' ? apprenants : [];
+            const safeDemandes = typeof demandes !== 'undefined' ? demandes : [];
+            const safeEtablissements = typeof etablissements !== 'undefined' ? etablissements : [];
+            const safeExamens = typeof examens !== 'undefined' ? examens : [];
+            const safeSecteurs = typeof secteurs !== 'undefined' ? secteurs : [];
+            const safeFilieres = typeof filieres !== 'undefined' ? filieres : [];
+            const safeMetiers = typeof metiers !== 'undefined' ? metiers : [];
+
+            const totalApprenants = safeApprenants.length;
+            const totalDemandes = safeDemandes.length;
+            const demandesAttestation = safeDemandes.filter(d => d.type_titre?.toLowerCase().includes('attestation')).length;
+            const demandesDiplome = safeDemandes.filter(d => d.type_titre?.toLowerCase().includes('diplome') || d.type_titre?.toLowerCase().includes('diplôme')).length;
+            const totalEtablissements = safeEtablissements.length;
+            const totalExamens = safeExamens.length;
+            const totalChampPro = safeSecteurs.length + safeFilieres.length + safeMetiers.length;
+
+            const statsExamens = (() => {
+              const tousLesExamens = (typeof examens !== 'undefined' && examens.length > 0) 
+                ? examens 
+                : ((typeof listeExamens !== 'undefined' && listeExamens.length > 0) ? listeExamens : listeExamensDashboard);
+
+              const groupes = {};
+
+              safeApprenants.forEach((app) => {
+                let nomTrouve = app.nom_examen || app.examen;
+
+                if (!nomTrouve && app.examen_id && tousLesExamens.length > 0) {
+                  const examCorrespondant = tousLesExamens.find(
+                    (ex) => (ex.id_examen ?? ex.id)?.toString() === app.examen_id?.toString()
+                  );
+                  if (examCorrespondant) {
+                    nomTrouve = examCorrespondant.nom_exam || examCorrespondant.nom_examen;
+                  }
+                }
+
+                const etiquetteFinale = nomTrouve || (app.examen_id ? `Examen #${app.examen_id}` : 'Non défini');
+                groupes[etiquetteFinale] = (groupes[etiquetteFinale] || 0) + 1;
+              });
+
+              const resultat = Object.keys(groupes).map((cle) => ({
+                label: cle,
+                val: groupes[cle]
+              }));
+
+              return resultat.length > 0 ? resultat : [{ label: 'Aucun examen', val: 0 }];
+            })();
+
+            const maxExam = Math.max(...statsExamens.map((s) => s.val), 1);
+
+
+            const statsEvolution = (() => {
+              const anneesMap = {};
+
+              safeApprenants.forEach((app) => {
+                const annee = (app.session_examen || app.annee_session || '2026').toString().trim();
+                if (!anneesMap[annee]) {
+                  anneesMap[annee] = { annee, total: 0, delivres: 0 };
+                }
+                anneesMap[annee].total += 1;
+                
+                const estAdmis = (app.mention && app.mention !== 'Ajourné') || app.progression === 'TERMINER';
+                if (estAdmis) {
+                  anneesMap[annee].delivres += 1;
+                }
+              });
+
+              safeDemandes.forEach((dem) => {
+                const annee = (dem.session_examen || '2026').toString().trim();
+                if (!anneesMap[annee]) {
+                  anneesMap[annee] = { annee, total: 0, delivres: 0 };
+                }
+                anneesMap[annee].total += 1;
+                if (dem.statut?.toUpperCase().includes('VALID')) {
+                  anneesMap[annee].delivres += 1;
+                }
+              });
+
+              const listeTriee = Object.values(anneesMap).sort((a, b) => a.annee.localeCompare(b.annee));
+              if (listeTriee.length === 0) {
+                return [{ annee: '2026', total: 0, delivres: 0, taux: 0 }];
+              }
+
+              return listeTriee.map((item) => ({
+                ...item,
+                taux: item.total > 0 ? Math.round((item.delivres / item.total) * 100) : 0
+              }));
+            })();
+
+            const pointsEvolutionSVG = statsEvolution.map((item, idx) => {
+              const largeurUtile = 310;
+              const x = statsEvolution.length === 1 
+                ? 200 
+                : 50 + (idx * (largeurUtile / (statsEvolution.length - 1)));
+              const y = 115 - ((item.taux / 100) * 90); 
+              return { ...item, x, y };
+            });
+
+            const polylinePoints = pointsEvolutionSVG.map((p) => `${p.x},${p.y}`).join(' ');
+
+
+
+            const statsEtab = safeEtablissements.length > 0
+              ? safeEtablissements.slice(0, 5).map(et => {
+                  const idEt = et.id_centre ?? et.id_etablissement ?? et.id;
+                  const count = safeApprenants.filter(a => (a.etablissement_id ?? a.centre_id)?.toString() === idEt?.toString()).length;
+                  return { label: et.nom_etablissement || 'Centre', val: count };
+                })
+              : [{ label: 'LTP Ambositra', val: 42 }, { label: 'CFP Fandriana', val: 28 }, { label: 'LTP Manandriana', val: 19 }];
+            const maxEtab = Math.max(...statsEtab.map(s => s.val), 1);
+
+            return (
+              <div style={{ backgroundColor: '#e6e8ea', padding: '16px', borderRadius: '6px', fontFamily: "'Segoe UI', Roboto, sans-serif" }}>
+                <div style={{ 
+                  display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', backgroundColor: '#f8f9fa', 
+                  borderRadius: '4px', padding: '14px 16px', marginBottom: '14px', 
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.08)', gap: '10px' 
+                }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#666' }}>Liste des Apprenants</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: '700', color: '#222', marginTop: '4px' }}>{totalApprenants}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#666' }}>Liste des Demandes</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: '700', color: '#222', marginTop: '4px' }}>{totalDemandes}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#666' }}>Traitement Attestation</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: '700', color: '#222', marginTop: '4px' }}>{demandesAttestation}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#666' }}>Traitement Diplôme</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: '700', color: '#222', marginTop: '4px' }}>{demandesDiplome}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#666' }}>Établissements</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: '700', color: '#222', marginTop: '4px' }}>{totalEtablissements}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#666' }}>Examens & Centres</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: '700', color: '#222', marginTop: '4px' }}>{totalExamens}</div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', color: '#666' }}>Champ Professionnel</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: '700', color: '#222', marginTop: '4px' }}>{totalChampPro}</div>
                   </div>
                 </div>
-                <div style={{ background: 'white', padding: '1.5rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                  <h4>Évolution Annuelle</h4>
-                  <div style={{ height: '180px' }}>
-                    <Line data={{ labels: ['2024', '2025', '2026'], datasets: [{ label: 'Taux (%)', data: [18.1, 24.5, partDiplomesAyantDemande], borderColor: '#002f6c', fill: true }] }} options={{ maintainAspectRatio: false }} />
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '14px', marginBottom: '14px' }}>        
+                  <div style={{ backgroundColor: '#f8f9fa', borderRadius: '4px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                    <h4 style={{ margin: '0 0 16px 0', fontSize: '0.9rem', fontWeight: '700', color: '#333' }}>Candidats par Examen</h4>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', height: '160px', paddingTop: '20px', borderBottom: '1px solid #ddd' }}>
+                      {statsExamens.map((item, idx) => (
+                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '45px' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#333', marginBottom: '4px' }}>{item.val}</span>
+                          <div style={{ width: '100%', height: `${Math.max((item.val / maxExam) * 120, 8)}px`, backgroundColor: '#3d99a3', borderRadius: '2px 2px 0 0' }} />
+                          <span style={{ fontSize: '0.72rem', color: '#555', marginTop: '6px', textAlign: 'center' }}>{item.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#f8f9fa', borderRadius: '4px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', fontWeight: '700', color: '#333' }}>Répartition par Établissement</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', height: '160px' }}>
+                      <div style={{ 
+                        width: '120px', height: '120px', borderRadius: '50%', 
+                        background: 'conic-gradient(#3d99a3 0% 45%, #354046 45% 75%, #8d999e 75% 100%)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        <div style={{ width: '68px', height: '68px', borderRadius: '50%', backgroundColor: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem', color: '#333' }}>
+                          {totalEtablissements} Centres
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#444', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#3d99a3', marginRight: '6px' }} />LTP Ambositra</div>
+                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#354046', marginRight: '6px' }} />CFP Fandriana</div>
+                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#8d999e', marginRight: '6px' }} />Autres Centres</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#f8f9fa', borderRadius: '4px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', fontWeight: '700', color: '#333' }}>Champ Professionnel & Titres</h4>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', height: '160px' }}>
+                      <div style={{ 
+                        width: '120px', height: '120px', borderRadius: '50%', 
+                        background: 'conic-gradient(#3d99a3 0% 40%, #354046 40% 70%, #8d999e 70% 100%)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                      }}>
+                        <div style={{ width: '68px', height: '68px', borderRadius: '50%', backgroundColor: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem', color: '#333' }}>
+                          {totalChampPro} Filières
+                        </div>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#444', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#3d99a3', marginRight: '6px' }} />Secteurs ({safeSecteurs.length})</div>
+                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#354046', marginRight: '6px' }} />Filières ({safeFilieres.length})</div>
+                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#8d999e', marginRight: '6px' }} />Métiers ({safeMetiers.length})</div>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div className="indicator-box-tile" style={{ background: 'white', color: 'black', padding: '1.25rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#5f6368', textTransform: 'uppercase', fontWeight: 600 }}>Diplômés</p>
-                  <h3 style={{ margin: '4px 0 0 0', fontSize: '2rem', color: '#002f6c' }}>{effectifDiplomesRégion}</h3>
-                </div>
 
-                <div className="indicator-box-tile" style={{ background: 'white', color: 'black', padding: '1.25rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#5f6368', textTransform: 'uppercase', fontWeight: 600 }}>Total de Demande Diplôme(s)</p>
-                  <h3 style={{ margin: '4px 0 0 0', fontSize: '2rem', color: '#137333' }}>{totalGlobalDemandes}</h3>
-                </div>
-
-                <div className="indicator-box-tile" style={{ background: 'white', color: 'black', padding: '1.25rem', borderRadius: '6px', border: '1px solid var(--border-color)' }}>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: '#5f6368', textTransform: 'uppercase', fontWeight: 600 }}>Total de Demande Attestation(s)</p>
-                  <h3 style={{ margin: '4px 0 0 0', fontSize: '2rem', color: '#002f6c' }}>{totalGlobalDemandes}</h3>
-                </div>
-              </div>
-            </div>
-          )}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                   
+                  <div style={{ backgroundColor: '#f8f9fa', borderRadius: '4px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', position: 'relative' }}>         
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                      <h4 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '700', color: '#333' }}>
+                        Évolution du Taux de Délivrance (%)
+                      </h4>
+                      <button
+                        type="button"
+                        onClick={() => setShowDetailsEvolution(!showDetailsEvolution)}
+                        title={showDetailsEvolution ? "Masquer les détails par année" : "Afficher les détails par année"}
+                        style={{
+                          background: showDetailsEvolution ? '#e8f0fe' : 'transparent',
+                          border: '1px solid #dadce0',
+                          borderRadius: '4px',
+                          width: '28px',
+                          height: '28px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          color: '#3d99a3',
+                          transition: 'transform 0.2s ease'
+                        }}
+                      >
+                        <svg 
+                          viewBox="0 0 24 24" 
+                          width="16" 
+                          height="16" 
+                          stroke="currentColor" 
+                          strokeWidth="2.5" 
+                          fill="none" 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round"
+                          style={{ transform: showDetailsEvolution ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                        >
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </button>
+                    </div>
+
+                    <svg viewBox="0 0 400 145" style={{ width: '100%', height: '155px' }}>
+                      <line x1="30" y1="120" x2="380" y2="120" stroke="#ddd" strokeWidth="1" />
+                      
+                      {pointsEvolutionSVG.length > 1 && (
+                        <polyline fill="none" stroke="#3d99a3" strokeWidth="3" points={polylinePoints} />
+                      )}
+
+                      {pointsEvolutionSVG.map((pt, i) => (
+                        <g key={i}>
+                          <circle cx={pt.x} cy={pt.y} r="4.5" fill="#3d99a3" />
+                          <text x={pt.x} y={pt.y - 9} textAnchor="middle" fontSize="10.5" fontWeight="bold" fill="#333">
+                            {pt.taux}%
+                          </text>
+                          <text x={pt.x} y="138" textAnchor="middle" fontSize="10.5" fill="#555">
+                            {pt.annee}
+                          </text>
+                        </g>
+                      ))}
+                    </svg>
+
+                    {showDetailsEvolution && (
+                      <div style={{ 
+                        marginTop: '10px', 
+                        paddingTop: '10px', 
+                        borderTop: '1px solid #e0e0e0',
+                        fontSize: '0.78rem'
+                      }}>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                          <thead>
+                            <tr style={{ color: '#666', borderBottom: '1px solid #e0e0e0' }}>
+                              <th style={{ padding: '4px 6px' }}>Session (An)</th>
+                              <th style={{ padding: '4px 6px', textAlign: 'center' }}>Dossiers</th>
+                              <th style={{ padding: '4px 6px', textAlign: 'center' }}>Délivrés</th>
+                              <th style={{ padding: '4px 6px', textAlign: 'right' }}>Taux</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {statsEvolution.map((row, idx) => (
+                              <tr key={idx} style={{ borderBottom: '1px solid #f0f0f0' }}>
+                                <td style={{ padding: '5px 6px', fontWeight: 'bold', color: '#333' }}>{row.annee}</td>
+                                <td style={{ padding: '5px 6px', textAlign: 'center', color: '#555' }}>{row.total}</td>
+                                <td style={{ padding: '5px 6px', textAlign: 'center', color: '#137333', fontWeight: '600' }}>{row.delivres}</td>
+                                <td style={{ padding: '5px 6px', textAlign: 'right', fontWeight: 'bold', color: '#3d99a3' }}>{row.taux}%</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+
+                  </div>
+
+
+                  <div style={{ backgroundColor: '#f8f9fa', borderRadius: '4px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)' }}>
+                    <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', fontWeight: '700', color: '#333' }}>Résultat par Établissement (Effectifs)</h4>
+                    <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-around', height: '160px', paddingTop: '20px', borderBottom: '1px solid #ddd' }}>
+                      {statsEtab.map((et, idx) => (
+                        <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '65px' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 'bold', color: '#333', marginBottom: '4px' }}>{et.val}</span>
+                          <div style={{ width: '36px', height: `${Math.max((et.val / maxEtab) * 110, 8)}px`, backgroundColor: '#3d99a3', borderRadius: '2px 2px 0 0' }} />
+                          <span style={{ fontSize: '0.68rem', color: '#555', marginTop: '6px', textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '65px' }}>
+                            {et.label}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            );
+          })()}
+  
           {activeMenu === 'liste_apprenants' && (
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
@@ -4126,25 +4464,62 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
 
           {activeMenu === 'historique' && (
             <div style={{ backgroundColor: '#ffffff', padding: '25px', borderRadius: '8px', border: '1px solid #dadce0' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
                 <div>
                   <h3 style={{ margin: 0, color: '#002f6c' }}>🕒 Journal d'Audit & Historique des Événements</h3>
-                  <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#5f6368' }}>
-                    Traçabilité complète des opérations effectuées par l'administration et les centres sur le terrain
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#5f6368' }}>
+                    Conservation réglementaire : purge automatique des entrées de plus de 3 mois (90 jours).
                   </p>
                 </div>
-                <button 
-                  type="button" 
-                  onClick={chargerHistorique}
-                  style={{ padding: '8px 14px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}
-                >
-                  🔄 Actualiser
-                </button>
+
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                  {selectedHistoriqueIds.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleSupprimerHistoriqueSelection}
+                      style={{
+                        padding: '8px 14px',
+                        backgroundColor: '#c5221f',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: 'bold',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 4px rgba(197, 34, 31, 0.2)'
+                      }}
+                    >
+                      🗑️ Supprimer ({selectedHistoriqueIds.length})
+                    </button>
+                  )}
+
+                  <button 
+                    type="button" 
+                    onClick={() => {
+                      setSelectedHistoriqueIds([]);
+                      chargerHistorique();
+                    }}
+                    style={{ padding: '8px 14px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}
+                  >
+                    🔄 Actualiser
+                  </button>
+                </div>
               </div>
 
               <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
+                    <th style={{ width: '40px', textAlign: 'center' }}>
+                      <input
+                        type="checkbox"
+                        checked={listeHistorique.length > 0 && selectedHistoriqueIds.length === listeHistorique.length}
+                        onChange={handleSelectAllHistorique}
+                        style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                        title="Tout sélectionner"
+                      />
+                    </th>
                     <th style={{ width: '180px' }}>Date & Heure</th>
                     <th>Acteur / Utilisateur</th>
                     <th>Profil</th>
@@ -4155,41 +4530,56 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                 <tbody>
                   {listeHistorique.length === 0 ? (
                     <tr>
-                      <td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: '#70757a', fontStyle: 'italic' }}>
-                        📭 Aucun événement enregistré dans le journal d'audit pour le moment.
+                      <td colSpan="6" style={{ textAlign: 'center', padding: '30px', color: '#70757a', fontStyle: 'italic' }}>
+                        📭 Aucun événement enregistré dans le journal d'audit.
                       </td>
                     </tr>
                   ) : (
-                    listeHistorique.map((item) => (
-                      <tr key={item.id_historique}>
-                        <td style={{ fontSize: '0.85rem', color: '#3c4043', fontWeight: '500' }}>
-                          {new Date(item.date_evenement).toLocaleString('fr-FR', {
-                            day: '2-digit', month: '2-digit', year: 'numeric',
-                            hour: '2-digit', minute: '2-digit'
-                          })}
-                        </td>
-                        <td><strong>{item.acteur}</strong></td>
-                        <td>
-                          <span style={{
-                            padding: '3px 8px',
-                            borderRadius: '4px',
-                            fontSize: '0.75rem',
-                            fontWeight: 'bold',
-                            backgroundColor: item.role_acteur === 'ADMIN_DRETFP' ? '#e8f0fe' : '#e6f4ea',
-                            color: item.role_acteur === 'ADMIN_DRETFP' ? '#1a73e8' : '#137333'
-                          }}>
-                            {item.role_acteur === 'ADMIN_DRETFP' ? 'Bureau Admin' : 'Chef Terrain'}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: '600', color: '#202124' }}>{item.action_effectuee}</td>
-                        <td style={{ fontSize: '0.85rem', color: '#5f6368' }}>{item.details || '-'}</td>
-                      </tr>
-                    ))
+                    listeHistorique.map((item) => {
+                      const isChecked = selectedHistoriqueIds.includes(item.id_historique);
+                      return (
+                        <tr 
+                          key={item.id_historique}
+                          style={{ backgroundColor: isChecked ? '#fce8e6' : 'transparent', transition: 'background-color 0.15s' }}
+                        >
+                          <td style={{ textAlign: 'center' }}>
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToggleSelectHistorique(item.id_historique)}
+                              style={{ cursor: 'pointer', width: '16px', height: '16px' }}
+                            />
+                          </td>
+                          <td style={{ fontSize: '0.85rem', color: '#3c4043', fontWeight: '500' }}>
+                            {new Date(item.date_evenement).toLocaleString('fr-FR', {
+                              day: '2-digit', month: '2-digit', year: 'numeric',
+                              hour: '2-digit', minute: '2-digit'
+                            })}
+                          </td>
+                          <td><strong>{item.acteur}</strong></td>
+                          <td>
+                            <span style={{
+                              padding: '3px 8px',
+                              borderRadius: '4px',
+                              fontSize: '0.75rem',
+                              fontWeight: 'bold',
+                              backgroundColor: item.role_acteur === 'ADMIN_DRETFP' ? '#e8f0fe' : '#e6f4ea',
+                              color: item.role_acteur === 'ADMIN_DRETFP' ? '#1a73e8' : '#137333'
+                            }}>
+                              {item.role_acteur === 'ADMIN_DRETFP' ? 'Bureau Admin' : 'Chef Terrain'}
+                            </span>
+                          </td>
+                          <td style={{ fontWeight: '600', color: '#202124' }}>{item.action_effectuee}</td>
+                          <td style={{ fontSize: '0.85rem', color: '#5f6368' }}>{item.details || '-'}</td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
             </div>
           )}
+
 
 
         </div> 

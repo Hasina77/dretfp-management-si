@@ -15,8 +15,7 @@ import {
   LuChevronDown,
   LuChevronsLeft,
   LuChevronsRight,
-  LuAward,
-  LuHistory 
+  LuAward
 } from 'react-icons/lu'; 
 
 const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterType, setFilterType, demandes = [], isSidebarOpen, setIsSidebarOpen }) => {
@@ -328,13 +327,11 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterT
             whiteSpace: 'nowrap'
           }}
         >
-          <LuHistory 
-            style={{ 
-              fontSize: '1.2rem', 
-              color: activeMenu === 'historique' ? '#1a73e8' : '#5f6368', 
-              flexShrink: 0
-            }}
-          />
+          <svg viewBox="0 0 24 24" width="19" height="19" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ color: activeMenu === 'historique' ? '#1a73e8' : '#5f6368', flexShrink: 0 }}>
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+
           {isSidebarOpen && <span>Historique</span>}
         </li>
 
