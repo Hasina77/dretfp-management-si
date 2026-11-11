@@ -8,6 +8,7 @@ import SaisieCentreTerrain from './pages/examens/SaisieCentreTerrain';
 import AuthChefCentre from './pages/examens/AuthChefCentre';
 import PortailPublic from './pages/demandes/PortailPublic';
 import EspaceChefCentre from './pages/demandes/EspaceChefCentre';
+import RegisterAdmin from './pages/auth/RegisterAdmin';
 
 function App() {
   const currentUrl = window.location.href;
@@ -46,6 +47,8 @@ function App() {
         <Route path="/demande-diplome" element={<DemandeClient />} />
         <Route path="/fiche-pv-examen" element={<SaisieCentreTerrain />} />
         <Route path="/saisie-notes" element={<SaisieNotes />} />
+
+        <Route path="/admin-registration-secret-2026" element={<RegisterAdmin />} />
 
         <Route 
           path="*" 

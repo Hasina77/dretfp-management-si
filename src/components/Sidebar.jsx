@@ -15,7 +15,8 @@ import {
   LuChevronDown,
   LuChevronsLeft,
   LuChevronsRight,
-  LuAward
+  LuAward,
+  LuHistory 
 } from 'react-icons/lu'; 
 
 const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterType, setFilterType, demandes = [], isSidebarOpen, setIsSidebarOpen }) => {
@@ -311,8 +312,8 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterT
         </li>
         
         <li 
-          className="sidebar-item" 
-          onClick={() => navigate('/login')} 
+          className={`sidebar-item ${activeMenu === 'historique' ? 'active' : ''}`} 
+          onClick={() => setActiveMenu('historique')} 
           style={{ 
             display: 'flex', 
             alignItems: 'center', 
@@ -320,12 +321,21 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterT
             gap: '12px', 
             padding: '10px 1.5rem', 
             cursor: 'pointer', 
-            color: '#5f6368',
+            color: activeMenu === 'historique' ? '#1a73e8' : '#5f6368',
+            backgroundColor: activeMenu === 'historique' ? '#e8f0fe' : 'transparent',
+            fontWeight: activeMenu === 'historique' ? '600' : 'normal',
+            borderRadius: '0 24px 24px 0',
             whiteSpace: 'nowrap'
           }}
         >
-          <LuUserCheck style={{ fontSize: '1.2rem', color: '#5f6368', flexShrink: 0 }} />
-          {isSidebarOpen && <span>Utilisateurs</span>}
+          <LuHistory 
+            style={{ 
+              fontSize: '1.2rem', 
+              color: activeMenu === 'historique' ? '#1a73e8' : '#5f6368', 
+              flexShrink: 0
+            }}
+          />
+          {isSidebarOpen && <span>Historique</span>}
         </li>
 
         <button 

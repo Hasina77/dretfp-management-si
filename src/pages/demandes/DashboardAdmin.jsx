@@ -211,6 +211,23 @@ const DashboardAdmin = () => {
     }
   }, [activeMenu]);
 
+  const [listeHistorique, setListeHistorique] = useState([]);
+
+  const chargerHistorique = async () => {
+    try {
+      const res = await API.get('/historique/liste');
+      setListeHistorique(res.data || []);
+    } catch (err) {
+      console.error("Erreur chargement historique :", err);
+    }
+  };
+
+    useEffect(() => {
+      if (activeMenu === 'historique') {
+        chargerHistorique();
+      }
+    }, [activeMenu]);
+
 
    const chargerNomenclaturesBdd = async () => {
     try {
@@ -4104,6 +4121,73 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
               </div>
             )}
 
+            </div>
+          )}
+
+          {activeMenu === 'historique' && (
+            <div style={{ backgroundColor: '#ffffff', padding: '25px', borderRadius: '8px', border: '1px solid #dadce0' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: '#002f6c' }}>🕒 Journal d'Audit & Historique des Événements</h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#5f6368' }}>
+                    Traçabilité complète des opérations effectuées par l'administration et les centres sur le terrain
+                  </p>
+                </div>
+                <button 
+                  type="button" 
+                  onClick={chargerHistorique}
+                  style={{ padding: '8px 14px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '4px', cursor: 'pointer', fontWeight: '600' }}
+                >
+                  🔄 Actualiser
+                </button>
+              </div>
+
+              <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ width: '180px' }}>Date & Heure</th>
+                    <th>Acteur / Utilisateur</th>
+                    <th>Profil</th>
+                    <th>Action effectuée</th>
+                    <th>Détails de l'opération</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {listeHistorique.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" style={{ textAlign: 'center', padding: '30px', color: '#70757a', fontStyle: 'italic' }}>
+                        📭 Aucun événement enregistré dans le journal d'audit pour le moment.
+                      </td>
+                    </tr>
+                  ) : (
+                    listeHistorique.map((item) => (
+                      <tr key={item.id_historique}>
+                        <td style={{ fontSize: '0.85rem', color: '#3c4043', fontWeight: '500' }}>
+                          {new Date(item.date_evenement).toLocaleString('fr-FR', {
+                            day: '2-digit', month: '2-digit', year: 'numeric',
+                            hour: '2-digit', minute: '2-digit'
+                          })}
+                        </td>
+                        <td><strong>{item.acteur}</strong></td>
+                        <td>
+                          <span style={{
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            fontSize: '0.75rem',
+                            fontWeight: 'bold',
+                            backgroundColor: item.role_acteur === 'ADMIN_DRETFP' ? '#e8f0fe' : '#e6f4ea',
+                            color: item.role_acteur === 'ADMIN_DRETFP' ? '#1a73e8' : '#137333'
+                          }}>
+                            {item.role_acteur === 'ADMIN_DRETFP' ? 'Bureau Admin' : 'Chef Terrain'}
+                          </span>
+                        </td>
+                        <td style={{ fontWeight: '600', color: '#202124' }}>{item.action_effectuee}</td>
+                        <td style={{ fontSize: '0.85rem', color: '#5f6368' }}>{item.details || '-'}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           )}
 
