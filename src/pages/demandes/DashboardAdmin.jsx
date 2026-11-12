@@ -72,6 +72,9 @@ const DashboardAdmin = () => {
 
   const [showDetailsEvolution, setShowDetailsEvolution] = useState(false);
 
+  const [selectedAutreCentreId, setSelectedAutreCentreId] = useState('');
+
+
   const [showAddChefModal, setShowAddChefModal] = useState(false);
   const [chefsCentre, setChefsCentre] = useState([]);
   const [openChefMenuId, setOpenChefMenuId] = useState(null);
@@ -111,6 +114,64 @@ const DashboardAdmin = () => {
       };
       chargerExamensPourStats();
     }, []);
+
+  const [statsChampProData, setStatsChampProData] = useState({
+      secteurs: 0,
+      filieres: 0,
+      metiers: 0
+    });
+
+    useEffect(() => {
+    const chargerChampProStats = async () => {
+      try {
+        const extraireListe = (res) => {
+          if (!res || !res.data) return [];
+          if (Array.isArray(res.data)) return res.data;
+          if (Array.isArray(res.data.items)) return res.data.items;
+          if (Array.isArray(res.data.data)) return res.data.data;
+          return [];
+        };
+
+        const [resSec, resFil, resMet] = await Promise.all([
+          API.get('/secteurs').catch(() => API.get('/secteurs/liste')).catch(() => ({ data: [] })),
+          API.get('/filieres').catch(() => API.get('/filieres/liste')).catch(() => ({ data: [] })),
+          API.get('/metiers').catch(() => API.get('/metiers/liste')).catch(() => ({ data: [] }))
+        ]);
+
+        setStatsChampProData({
+          secteurs: extraireListe(resSec).length,
+          filieres: extraireListe(resFil).length,
+          metiers: extraireListe(resMet).length
+        });
+      } catch (err) {
+        console.error("Erreur chargement stats Champ Pro :", err);
+      }
+    };
+
+    chargerChampProStats();
+  }, []);
+    
+
+    const [nbChefsDashboard, setNbChefsDashboard] = useState(0);
+
+    useEffect(() => {
+      const chargerNombreChefs = async () => {
+        try {
+          const res = await API.get('/chefs-centre').catch(() => API.get('/chefs-centre/liste'));
+          
+          if (Array.isArray(res.data)) {
+            setNbChefsDashboard(res.data.length);
+          } else if (res.data && Array.isArray(res.data.items)) {
+            setNbChefsDashboard(res.data.items.length);
+          }
+        } catch (err) {
+          console.error("Erreur chargement compteur chefs :", err);
+        }
+      };
+
+      chargerNombreChefs();
+    }, []);
+
 
   const [openDemandeMenuId, setOpenDemandeMenuId] = useState(null);
   const [openTraitementMenuId, setOpenTraitementMenuId] = useState(null);
@@ -282,6 +343,7 @@ const DashboardAdmin = () => {
         alert("❌ Impossible de supprimer la sélection.");
       }
     };
+   
 
 
    const chargerNomenclaturesBdd = async () => {
@@ -500,8 +562,13 @@ const DashboardAdmin = () => {
           const secteurTexte = String(row['Secteur'] || row['secteur_id'] || "").trim().toLowerCase();
           const filiereTexte = String(row['Filière'] || row['filiere_id'] || "").trim().toLowerCase();
           const metierTexte = String(row['Métier'] || row['metier_id'] || "").trim().toLowerCase();
-          const examenTexte = String(row['Examen'] || row['examen_id'] || "").trim().toLowerCase();
-
+          const nomExamenExcel = (
+            row['Examen'] || 
+            row['examen'] || 
+            row['EXAMEN'] || 
+            row['Examen '] || 
+            ''
+          ).toString().trim().toUpperCase();
           const etabTrouve = (listeEtablissements || []).find(e => 
             String(e.nom_etablissement || e.nom || "").trim().toLowerCase() === etabTexte
           );
@@ -514,9 +581,12 @@ const DashboardAdmin = () => {
           const metierTrouve = (listeMetiers || []).find(m => 
             String(m.nom_metier || m.nom || "").trim().toLowerCase() === metierTexte
           );
-          const examenTrouve = (listeExamens || []).find(ex => 
-            String(ex.nom_examen || ex.nom || ex.id_examen || "").trim().toLowerCase() === examenTexte
-          );
+          const examenTrouve = (listeExamens || examens || []).find((ex) => {
+            const nomBase = (ex.nom_exam || ex.nom_examen || '').toString().trim().toUpperCase();
+            return nomBase === nomExamenExcel;
+          });
+
+          const examen_id_final = examenTrouve ? (examenTrouve.id_examen ?? examenTrouve.id) : null;
 
           const finalEtabId = etabTrouve ? (etabTrouve.id_etablissement ?? etabTrouve.id ?? etabTrouve.id_centre) : 1;
           const finalSecteurId = secteurTrouve ? (secteurTrouve.id_secteur ?? secteurTrouve.id) : 1;
@@ -1911,11 +1981,37 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
 
             const totalApprenants = safeApprenants.length;
             const totalDemandes = safeDemandes.length;
-            const demandesAttestation = safeDemandes.filter(d => d.type_titre?.toLowerCase().includes('attestation')).length;
-            const demandesDiplome = safeDemandes.filter(d => d.type_titre?.toLowerCase().includes('diplome') || d.type_titre?.toLowerCase().includes('diplôme')).length;
+            
+            const demandesAttestation = safeDemandes.filter((d) => {
+              const type = (d.type_titre || d.type_demande || d.type_document || d.titre || '').toLowerCase();
+              return type.includes('attestation');
+            }).length;
+
+            const demandesDiplome = safeDemandes.filter((d) => {
+              const type = (d.type_titre || d.type_demande || d.type_document || d.titre || '').toLowerCase();
+              return type.includes('diplome') || type.includes('diplôme');
+            }).length;
+
             const totalEtablissements = safeEtablissements.length;
-            const totalExamens = safeExamens.length;
-            const totalChampPro = safeSecteurs.length + safeFilieres.length + safeMetiers.length;
+            
+            const secteursUniquesApp = new Set(safeApprenants.map(a => a.secteur || a.nom_secteur).filter(Boolean)).size;
+            const filieresUniquesApp = new Set(safeApprenants.map(a => a.filiere || a.nom_filiere).filter(Boolean)).size;
+            const metiersUniquesApp = new Set(safeApprenants.map(a => a.metier || a.nom_metier || a.specialite).filter(Boolean)).size;
+
+            const nbSecteurs = Math.max(safeSecteurs.length, statsChampProData.secteurs, secteursUniquesApp);
+            const nbFilieres = Math.max(safeFilieres.length, statsChampProData.filieres, filieresUniquesApp);
+            const nbMetiers = Math.max(safeMetiers.length, statsChampProData.metiers, metiersUniquesApp);
+
+            const totalChampPro = nbSecteurs + nbFilieres + nbMetiers;
+
+            const pctSecteurs = totalChampPro > 0 ? Math.round((nbSecteurs / totalChampPro) * 100) : 33;
+            const pctFilieres = totalChampPro > 0 ? Math.round((nbFilieres / totalChampPro) * 100) : 33;
+            const finFilieres = pctSecteurs + pctFilieres;
+
+            const gradientAnneauChampPro = totalChampPro > 0
+              ? `conic-gradient(#3d99a3 0% ${pctSecteurs}%, #354046 ${pctSecteurs}% ${finFilieres}%, #8d999e ${finFilieres}% 100%)`
+              : 'conic-gradient(#d1d5db 0% 100%)';
+
 
             const statsExamens = (() => {
               const tousLesExamens = (typeof examens !== 'undefined' && examens.length > 0) 
@@ -2011,6 +2107,64 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
               : [{ label: 'LTP Ambositra', val: 42 }, { label: 'CFP Fandriana', val: 28 }, { label: 'LTP Manandriana', val: 19 }];
             const maxEtab = Math.max(...statsEtab.map(s => s.val), 1);
 
+
+            const repartitionEtablissements = (() => {
+              const listeAvecEffectifs = safeEtablissements.map((et) => {
+                const idEt = (et.id_centre ?? et.id_etablissement ?? et.id)?.toString();
+                const nomEt = (et.nom_etablissement || 'Centre').trim();
+
+                const nbApprenants = safeApprenants.filter((app) => {
+                  const appEtId = (app.etablissement_id ?? app.centre_id)?.toString();
+                  const appEtNom = (app.etablissement || app.nom_etablissement || '').trim().toLowerCase();
+                  return (idEt && appEtId === idEt) || (appEtNom && appEtNom === nomEt.toLowerCase());
+                }).length;
+
+                return { id: idEt || nomEt, nom: nomEt, count: nbApprenants };
+              });
+
+
+              const tries = [...listeAvecEffectifs].sort((a, b) => b.count - a.count);
+
+              const centre1 = tries[0] || { id: 'c1', nom: 'Aucun centre', count: 0 };
+              const centre2 = tries[1] || null;
+              const autresCentres = tries.slice(2); 
+
+              const totalAutres = autresCentres.reduce((acc, c) => acc + c.count, 0);
+              const totalGlobal = centre1.count + (centre2 ? centre2.count : 0) + totalAutres;
+
+              const pct1 = totalGlobal > 0 ? Math.round((centre1.count / totalGlobal) * 100) : 34;
+              const pct2 = totalGlobal > 0 ? Math.round(((centre2 ? centre2.count : 0) / totalGlobal) * 100) : 33;
+              const fin2 = pct1 + pct2;
+
+              const gradientAnneau = totalGlobal > 0
+                ? `conic-gradient(#3d99a3 0% ${pct1}%, #354046 ${pct1}% ${fin2}%, #8d999e ${fin2}% 100%)`
+                : 'conic-gradient(#d1d5db 0% 100%)';
+
+              const centreSelectActif = autresCentres.find((c) => c.id === selectedAutreCentreId) || autresCentres[0] || null;
+
+              return {
+                centre1,
+                centre2,
+                autresCentres,
+                centreSelectActif,
+                gradientAnneau,
+                totalCentres: tries.length
+              };
+            })();
+
+              const safeChefsCentre = 
+                (typeof chefsCentre !== 'undefined' && Array.isArray(chefsCentre) && chefsCentre.length > 0) ? chefsCentre :
+                (typeof listeChefs !== 'undefined' && Array.isArray(listeChefs) && listeChefs.length > 0) ? listeChefs :
+                (typeof chefs !== 'undefined' && Array.isArray(chefs) && chefs.length > 0) ? chefs : [];
+
+              const totalChefsCentre = Math.max(
+                nbChefsDashboard,
+                typeof chefsCentre !== 'undefined' && Array.isArray(chefsCentre) ? chefsCentre.length : 0,
+                typeof listeChefs !== 'undefined' && Array.isArray(listeChefs) ? listeChefs.length : 0
+              );
+
+
+
             return (
               <div style={{ backgroundColor: '#e6e8ea', padding: '16px', borderRadius: '6px', fontFamily: "'Segoe UI', Roboto, sans-serif" }}>
                 <div style={{ 
@@ -2039,8 +2193,8 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                     <div style={{ fontSize: '1.15rem', fontWeight: '700', color: '#222', marginTop: '4px' }}>{totalEtablissements}</div>
                   </div>
                   <div>
-                    <div style={{ fontSize: '0.75rem', color: '#666' }}>Examens & Centres</div>
-                    <div style={{ fontSize: '1.15rem', fontWeight: '700', color: '#222', marginTop: '4px' }}>{totalExamens}</div>
+                    <div style={{ fontSize: '0.75rem', color: '#666' }}>Chef de Centre</div>
+                    <div style={{ fontSize: '1.15rem', fontWeight: '700', color: '#222', marginTop: '4px' }}>{totalChefsCentre}</div>
                   </div>
                   <div>
                     <div style={{ fontSize: '0.75rem', color: '#666' }}>Champ Professionnel</div>
@@ -2063,44 +2217,122 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                   </div>
 
                   <div style={{ backgroundColor: '#f8f9fa', borderRadius: '4px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', fontWeight: '700', color: '#333' }}>Répartition par Établissement</h4>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', height: '160px' }}>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', fontWeight: '700', color: '#333' }}>
+                      Répartition par Établissement
+                    </h4>
+
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', height: '160px', gap: '10px' }}>
                       <div style={{ 
-                        width: '120px', height: '120px', borderRadius: '50%', 
-                        background: 'conic-gradient(#3d99a3 0% 45%, #354046 45% 75%, #8d999e 75% 100%)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        width: '115px', height: '115px', borderRadius: '50%', flexShrink: 0,
+                        background: repartitionEtablissements.gradientAnneau,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'background 0.4s ease'
                       }}>
-                        <div style={{ width: '68px', height: '68px', borderRadius: '50%', backgroundColor: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem', color: '#333' }}>
-                          {totalEtablissements} Centres
+                        <div style={{ 
+                          width: '66px', height: '66px', borderRadius: '50%', 
+                          backgroundColor: '#f8f9fa', display: 'flex', alignItems: 'center', 
+                          justifyContent: 'center', fontWeight: 'bold', fontSize: '0.82rem', 
+                          color: '#333', textAlign: 'center', padding: '4px' 
+                        }}>
+                          {repartitionEtablissements.totalCentres} Centre{repartitionEtablissements.totalCentres > 1 ? 's' : ''}
                         </div>
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#444', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#3d99a3', marginRight: '6px' }} />LTP Ambositra</div>
-                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#354046', marginRight: '6px' }} />CFP Fandriana</div>
-                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#8d999e', marginRight: '6px' }} />Autres Centres</div>
+
+                      <div style={{ fontSize: '0.76rem', color: '#444', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: 0 }}>
+                        
+                        <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#3d99a3', marginRight: '6px', flexShrink: 0, borderRadius: '2px' }} />
+                          <span title={repartitionEtablissements.centre1.nom} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {repartitionEtablissements.centre1.nom} (<strong>{repartitionEtablissements.centre1.count} Apprenant(s)</strong>)
+                          </span>
+                        </div>
+
+                        {repartitionEtablissements.centre2 && (
+                          <div style={{ display: 'flex', alignItems: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#354046', marginRight: '6px', flexShrink: 0, borderRadius: '2px' }} />
+                            <span title={repartitionEtablissements.centre2.nom} style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {repartitionEtablissements.centre2.nom} (<strong>{repartitionEtablissements.centre2.count} Apprenant(s)</strong>)
+                            </span>
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#8d999e', marginRight: '6px', flexShrink: 0, borderRadius: '2px' }} />
+                          
+                          {repartitionEtablissements.autresCentres.length > 0 ? (
+                            <select
+                              value={repartitionEtablissements.centreSelectActif?.id || ''}
+                              onChange={(e) => setSelectedAutreCentreId(e.target.value)}
+                              style={{
+                                border: '1px solid #dadce0',
+                                borderRadius: '4px',
+                                backgroundColor: '#ffffff',
+                                color: '#333',
+                                fontSize: '0.74rem',
+                                fontWeight: '600',
+                                padding: '2px 4px',
+                                cursor: 'pointer',
+                                maxWidth: '145px',
+                                outline: 'none'
+                              }}
+                              title="Sélectionner un autre centre pour voir son effectif"
+                            >
+                              {repartitionEtablissements.autresCentres.map((centre) => (
+                                <option key={centre.id} value={centre.id}>
+                                  {centre.nom} ({centre.count})
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span style={{ color: '#777', fontStyle: 'italic' }}>Autres Centres (0)</span>
+                          )}
+                        </div>
+
                       </div>
                     </div>
                   </div>
 
+
                   <div style={{ backgroundColor: '#f8f9fa', borderRadius: '4px', padding: '16px', boxShadow: '0 1px 3px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', fontWeight: '700', color: '#333' }}>Champ Professionnel & Titres</h4>
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', height: '160px' }}>
+                    <h4 style={{ margin: '0 0 10px 0', fontSize: '0.9rem', fontWeight: '700', color: '#333' }}>
+                      Champ Professionnel & Titres
+                    </h4>
+                    
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', height: '160px' }}>                     
                       <div style={{ 
                         width: '120px', height: '120px', borderRadius: '50%', 
-                        background: 'conic-gradient(#3d99a3 0% 40%, #354046 40% 70%, #8d999e 70% 100%)',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        background: gradientAnneauChampPro,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'background 0.4s ease'
                       }}>
-                        <div style={{ width: '68px', height: '68px', borderRadius: '50%', backgroundColor: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.85rem', color: '#333' }}>
-                          {totalChampPro} Filières
+                        <div style={{ 
+                          width: '70px', height: '70px', borderRadius: '50%', 
+                          backgroundColor: '#f8f9fa', display: 'flex', flexDirection: 'column',
+                          alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', 
+                          fontSize: '0.85rem', color: '#333', textAlign: 'center', lineHeight: '1.1'
+                        }}>
+                          <span>{totalChampPro}</span>
+                          <span style={{ fontSize: '0.68rem', color: '#666', fontWeight: '600' }}>Total</span>
                         </div>
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#444', display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#3d99a3', marginRight: '6px' }} />Secteurs ({safeSecteurs.length})</div>
-                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#354046', marginRight: '6px' }} />Filières ({safeFilieres.length})</div>
-                        <div><span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#8d999e', marginRight: '6px' }} />Métiers ({safeMetiers.length})</div>
+
+                      <div style={{ fontSize: '0.78rem', color: '#444', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#3d99a3', marginRight: '8px', borderRadius: '2px' }} />
+                          <span>Secteurs (<strong>{nbSecteurs}</strong>)</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#354046', marginRight: '8px', borderRadius: '2px' }} />
+                          <span>Filières (<strong>{nbFilieres}</strong>)</span>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: '#8d999e', marginRight: '8px', borderRadius: '2px' }} />
+                          <span>Métiers (<strong>{nbMetiers}</strong>)</span>
+                        </div>
                       </div>
                     </div>
                   </div>
+
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
@@ -2324,7 +2556,7 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                 >
                   <option value="Tous">Session:</option>
                   {[...new Set((apprenants || []).map(app => app.session).filter(Boolean))]
-                    .sort((a, b) => b - a) // Trie du plus récent au plus ancien
+                    .sort((a, b) => b - a) 
                     .map((annee) => (
                       <option key={annee} value={annee}>{annee}</option>
                     ))
@@ -2523,11 +2755,11 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                                       if (nomTexte) return nomTexte;
                                     }
                                     
-                                    if (idBrut === '1') return 'CAP';
-                                    if (idBrut === '2') return 'BEP';
-                                    if (idBrut === '3') return 'BT';
+                                    if (idBrut === '1') return 'BEP';
+                                    if (idBrut === '2') return 'CAP';
+                                    if (idBrut === '3') return 'CFA';
                                     
-                                    return idBrut || 'CAP';
+                                    return idBrut || 'BEP';
                                   })()
                                 }
                               </div>
@@ -2551,7 +2783,7 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
 
                             <td><em style={{ color: 'var(--primary-color)', fontWeight: 600 }}>{item.mention || 'Passable'}</em></td>
                             <td>
-                              {statutDemande === 'TERMINER' && <span className="status-badge valide">✅ Terminé / Signé</span>}
+                              {statutDemande === 'TERMINER' && <span className="status-badge valide">✅ Terminé </span>}
                               {statutDemande === 'EN_COURS' && <span className="status-badge en-cours" style={{ backgroundColor: '#e8f0fe', color: '#1a73e8' }}>⏳ En traitement</span>}
                               {statutDemande === 'EN_ATTENTE' && <span className="status-badge en-attente" style={{ backgroundColor: '#fef7e0', color: '#b06000' }}>⏳ En attente</span>}
                               {statutDemande === 'AUCUNE_DEMANDE' && <span className="status-badge offline" style={{ backgroundColor: '#f1f3f4', color: '#5f6368' }}>❌ Aucune</span>}
@@ -3685,7 +3917,7 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
               <div className="filter-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '15px' }}>
                 <input 
                   type="text" 
-                  placeholder="Rechercher un examen par son nom (Ex: CAP, BT)..." 
+                  placeholder="Rechercher un examen par son nom (Ex: CAP, BEP)..." 
                   className="search-input"
                   style={{ width: '320px', height: '38px' }}
                   value={searchExamen || ''}
