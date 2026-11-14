@@ -109,12 +109,115 @@ const EspaceChefCentre = () => {
     );
   }
 
+
+  // --- GESTIONNAIRE DE SYNCHRONISATION HORS-LIGNE ---
+  const useOfflineSync = () => {
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [fileAttente, setFileAttente] = useState(() => {
+      const saved = localStorage.getItem('dretfp_offline_queue');
+      return saved ? JSON.parse(saved) : [];
+    });
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    useEffect(() => {
+      const handleOnline = () => setIsOnline(true);
+      const handleOffline = () => setIsOnline(false);
+
+      window.addEventListener('online', handleOnline);
+      window.addEventListener('offline', handleOffline);
+      return () => {
+        window.removeEventListener('online', handleOnline);
+        window.removeEventListener('offline', handleOffline);
+      };
+    }, []);
+
+    const sauvegarderHorsLigne = (endpoint, payload, description) => {
+      const nouvelItem = {
+        id: Date.now(),
+        date: new Date().toLocaleString('fr-FR'),
+        endpoint,
+        payload,
+        description
+      };
+      const nouvelleFile = [...fileAttente, nouvelItem];
+      setFileAttente(nouvelleFile);
+      localStorage.setItem('dretfp_offline_queue', JSON.stringify(nouvelleFile));
+    };
+
+    const synchroniserMaintenant = async () => {
+      if (!navigator.onLine) {
+        alert("📡 Toujours hors-ligne. Connectez-vous à internet pour synchroniser.");
+        return;
+      }
+      if (fileAttente.length === 0) return;
+
+      setIsSyncing(true);
+      const restants = [];
+
+      for (const item of fileAttente) {
+        try {
+          await API.post(item.endpoint, item.payload);
+        } catch (err) {
+          console.error("Échec sync item :", item.id, err);
+          restants.push(item);
+        }
+      }
+
+      setFileAttente(restants);
+      localStorage.setItem('dretfp_offline_queue', JSON.stringify(restants));
+      setIsSyncing(false);
+
+      if (restants.length === 0) {
+        alert("✅ Toutes les données saisies hors-ligne ont été transmises à la DRETFP !");
+      } else {
+        alert(`⚠️ ${restants.length} lot(s) n'ont pas pu être envoyés. Réessayez plus tard.`);
+      }
+    };
+
+    return { isOnline, fileAttente, isSyncing, sauvegarderHorsLigne, synchroniserMaintenant };
+  };
+
+
   return (
     <div style={{ padding: '30px', maxWidth: '900px', margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
       <div style={{ backgroundColor: '#002f6c', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '25px' }}>
         <h2>🏛️ Portail de Saisie Décentralisé — Chef de Centre</h2>
         <p>Session d'Examen — Transmission sécurisée des fiches candidats vers la DRETFP centrale</p>
       </div>
+
+
+      {/* DANS LE RENDU DE EspaceChefCentre.jsx */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '10px 16px', borderRadius: '6px', marginBottom: '15px',
+        backgroundColor: isOnline ? '#e6f4ea' : '#fef7e0',
+        border: `1px solid ${isOnline ? '#ceead6' : '#fde293'}`
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.88rem', fontWeight: '600', color: isOnline ? '#137333' : '#b06000' }}>
+          <span>{isOnline ? '🟢 Connecté au serveur DRETFP' : '🟠 Mode Hors-Ligne actif (Saisie locale sécurisée)'}</span>
+          {fileAttente.length > 0 && (
+            <span style={{ backgroundColor: '#c5221f', color: '#fff', padding: '2px 8px', borderRadius: '12px', fontSize: '0.75rem' }}>
+              {fileAttente.length} envoi(s) en attente
+            </span>
+          )}
+        </div>
+
+        {fileAttente.length > 0 && (
+          <button
+            type="button"
+            onClick={synchroniserMaintenant}
+            disabled={!isOnline || isSyncing}
+            style={{
+              backgroundColor: isOnline ? '#1a73e8' : '#9aa0a6',
+              color: '#fff', border: 'none', borderRadius: '4px',
+              padding: '6px 14px', fontWeight: 'bold', cursor: isOnline ? 'pointer' : 'not-allowed'
+            }}
+          >
+            {isSyncing ? 'Synchronisation...' : '🔄 Synchroniser maintenant'}
+          </button>
+        )}
+      </div>
+
 
       {modeSaisie === '' && (
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '40px' }}>
