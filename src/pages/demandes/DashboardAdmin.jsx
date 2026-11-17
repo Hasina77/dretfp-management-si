@@ -88,7 +88,7 @@ const DashboardAdmin = () => {
   const [notifChefsCount, setNotifChefsCount] = useState(0);
   const verifierNotificationsChefs = async () => {
     try {
-      const response = await API.get('/apprenants/notifications-attente');
+      const response = await API.get('/documents/notifications-attente');
       setNotifChefsCount(response.data.notifications_count);
     } catch (err) {
       console.error("⚠️ Impossible de charger les notifications de fiches candidats :", err);
@@ -105,6 +105,7 @@ const DashboardAdmin = () => {
     return () => clearInterval(intervalle); 
   }, []);
 
+  
 
   const [listeExamensDashboard, setListeExamensDashboard] = useState([]);
 
@@ -257,15 +258,16 @@ const DashboardAdmin = () => {
     if (!idEtab) return;
     setLoadingDocsChef(true);
     try {
-      const res = await API.get(`/chefs-centre/documents/${idEtab}`);
+      const res = await API.get(`/documents/${idEtab}`);
       setDocumentsChef(res.data || []);
     } catch (err) {
-      console.error("Erreur chargement documents du centre :", err);
+      console.error("Erreur chargement documents :", err);
       setDocumentsChef([]);
     } finally {
       setLoadingDocsChef(false);
     }
   };
+
 
  
 const [parametresSysteme, setParametresSysteme] = useState(() => {
@@ -4708,7 +4710,7 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                             type="button"
                             onClick={() => {
                               if (chef.a_envoye_donnees) {
-                                ouvrirInterfaceChef(chef, 'apprenants');
+                                ouvrirInterfaceChef(chef, 'documents');
                               } else {
                                 alert(`⏳ Aucune liste ni rapport n'a encore été transmis par ${chef.nom_chefcentre} pour cet établissement.`);
                               }
