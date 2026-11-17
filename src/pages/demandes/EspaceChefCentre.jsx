@@ -20,6 +20,63 @@ const EspaceChefCentre = () => {
   const userRole = localStorage.getItem('user_role');
   const token = localStorage.getItem('dretfp_token');
 
+  const [fichierDocument, setFichierDocument] = useState(null);
+  const [envoiDocLoading, setEnvoiDocLoading] = useState(false);
+  const [mesDocumentsEnvoyes, setMesDocumentsEnvoyes] = useState([]);
+
+  const idEtabConnecte = localStorage.getItem('centre_affectation') || localStorage.getItem('id_etablissement') || '';
+  const usernameChefConnecte = localStorage.getItem('user_username') || localStorage.getItem('username') || 'chef_terrain';
+
+  const chargerMesDocuments = async () => {
+    if (!idEtabConnecte) return;
+    try {
+      const res = await API.get(`/chefs-centre/documents/${idEtabConnecte}`);
+      setMesDocumentsEnvoyes(res.data || []);
+    } catch (err) {
+      console.error("Erreur chargement de mes documents :", err);
+    }
+  };
+
+    useEffect(() => {
+      chargerMesDocuments();
+    }, [idEtabConnecte]);
+
+    const handleEnvoyerDocumentOfficiel = async (e) => {
+      e.preventDefault();
+      if (!fichierDocument) {
+        alert("⚠️ Veuillez sélectionner un fichier (Excel, Word ou PDF) avant d'envoyer.");
+        return;
+      }
+      if (!idEtabConnecte) {
+        alert("❌ Identifiant d'établissement introuvable. Veuillez vous reconnecter.");
+        return;
+      }
+
+      setEnvoiDocLoading(true);
+      const formData = new FormData();
+      formData.append('id_etablissement', Number(idEtabConnecte));
+      formData.append('chef_username', usernameChefConnecte);
+      formData.append('fichier', fichierDocument);
+
+      try {
+        await API.post('/chefs-centre/envoyer-document', formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        });
+
+        alert(`✅ Le document "${fichierDocument.name}" a été transmis avec succès à la DRETFP !`);
+        setFichierDocument(null);
+        e.target.reset(); 
+        chargerMesDocuments(); 
+      } catch (err) {
+        console.error("Erreur lors de l'envoi du document :", err);
+        alert(err.response?.data?.detail || "❌ Échec de l'envoi du document. Vérifiez votre connexion.");
+      } finally {
+        setEnvoiDocLoading(false);
+      }
+    };
+
   useEffect(() => {
     if (!token) {
       alert("🔒 Accès refusé : Veuillez vous connecter pour accéder à l'espace Chef de Centre.");
@@ -123,7 +180,7 @@ const EspaceChefCentre = () => {
             onClick={() => setModeSaisie('manuel')}
             style={{ padding: '25px', width: '250px', backgroundColor: '#ffffff', border: '2px solid #1a73e8', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', color: '#1a73e8', fontSize: '1rem' }}
           >
-            ✍️ Saisie manuelle des apprenants
+             Saisie manuelle des apprenants
           </button>
           
           <button 
@@ -131,27 +188,115 @@ const EspaceChefCentre = () => {
             onClick={() => setModeSaisie('excel')}
             style={{ padding: '25px', width: '250px', backgroundColor: '#ffffff', border: '2px solid #34a853', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', color: '#34a853', fontSize: '1rem' }}
           >
-            📊 Importer un fichier Excel complet
+             Importer un fichier Excel complet
           </button>
         </div>
       )}
 
       {modeSaisie === 'excel' && (
-        <div style={{ background: '#fff', padding: '20px', borderRadius: '8px', border: '1px solid #dadce0' }}>
-          <h3>📥 Chargement du fichier du centre</h3>
-          <input type="file" accept=".xlsx, .xls" onChange={handleLectureExcel} style={{ marginBottom: '20px' }} />
-          
-          {listeApprenants.length > 0 && (
-            <div>
-              <p style={{ color: '#137333', fontWeight: '600' }}>✅ {listeApprenants.length} ligne(s) détectée(s) prête(s) à l'envoi.</p>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
-                <button type="button" onClick={() => { setModeSaisie(''); setListeApprenants([]); }} style={{ padding: '10px 15px', background: '#f1f3f4', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Annuler</button>
-                <button type="button" onClick={handleTransmettreADistance} disabled={loading} style={{ padding: '10px 20px', background: '#002f6c', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                  {loading ? "Envoi distant..." : "📤 Valider l'envoi vers l'Admin"}
-                </button>
-              </div>
+        <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dadce0', padding: '20px', marginTop: '20px', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}>
+  
+          <div style={{ borderBottom: '1px solid #f1f3f4', paddingBottom: '12px', marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, color: '#002f6c', fontSize: '1.05rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>📤</span> Transmettre un Document Officiel à la DRETFP
+            </h3>
+            <p style={{ margin: '4px 0 0 0', fontSize: '0.82rem', color: '#5f6368' }}>
+              Formats acceptés : <strong>Excel</strong> (.xlsx, .xls), <strong>Word</strong> (.doc, .docx) et <strong>PDF</strong> (.pdf) — Listes de candidats, Procès-Verbaux ou Rapports de fin de session.
+            </p>
+          </div>
+
+          <form onSubmit={handleEnvoyerDocumentOfficiel} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            <div style={{
+              border: '2px dashed #9ab9e8',
+              borderRadius: '8px',
+              padding: '20px',
+              textAlign: 'center',
+              backgroundColor: '#f8faff'
+            }}>
+              <div style={{ fontSize: '1.8rem', marginBottom: '6px' }}>📄📊📕</div>
+              <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: '600', color: '#002f6c', marginBottom: '8px', cursor: 'pointer' }}>
+                Choisir un fichier depuis votre appareil :
+              </label>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.doc,.docx,.pdf"
+                onChange={(e) => setFichierDocument(e.target.files || null)}
+                style={{
+                  fontSize: '0.85rem',
+                  color: '#333',
+                  maxWidth: '100%'
+                }}
+              />
+              {fichierDocument && (
+                <div style={{ marginTop: '10px', fontSize: '0.82rem', color: '#137333', fontWeight: 'bold' }}>
+                  📎 Fichier prêt : {fichierDocument.name} ({(fichierDocument.size / 1024).toFixed(1)} Ko)
+                </div>
+              )}
             </div>
-          )}
+
+            <button
+              type="submit"
+              disabled={envoiDocLoading || !fichierDocument}
+              style={{
+                backgroundColor: (!fichierDocument || envoiDocLoading) ? '#9aa0a6' : '#002f6c',
+                color: '#ffffff',
+                border: 'none',
+                borderRadius: '6px',
+                padding: '12px',
+                fontWeight: 'bold',
+                fontSize: '0.92rem',
+                cursor: (!fichierDocument || envoiDocLoading) ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                transition: 'background-color 0.2s'
+              }}
+            >
+              {envoiDocLoading ? '⏳ Transmission en cours...' : '🚀 Envoyer le document au Bureau Central'}
+            </button>
+          </form>
+
+          <div style={{ marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #e0e0e0' }}>
+            <h4 style={{ margin: '0 0 12px 0', fontSize: '0.9rem', color: '#333' }}>
+              📋 Mes documents déjà transmis ({mesDocumentsEnvoyes.length})
+            </h4>
+
+            {mesDocumentsEnvoyes.length === 0 ? (
+              <p style={{ fontSize: '0.82rem', color: '#777', fontStyle: 'italic', margin: 0 }}>
+                Aucun document envoyé pour le moment.
+              </p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {mesDocumentsEnvoyes.map((doc) => (
+                  <div
+                    key={doc.id_document}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      padding: '10px 12px',
+                      backgroundColor: '#f8f9fa',
+                      borderRadius: '6px',
+                      border: '1px solid #e8eaed',
+                      fontSize: '0.84rem'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+                      <span style={{ fontWeight: 'bold', color: '#1a73e8' }}>[{doc.type_fichier}]</span>
+                      <span style={{ fontWeight: '600', color: '#202124', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {doc.nom_fichier}
+                      </span>
+                    </div>
+                    <span style={{ fontSize: '0.75rem', color: '#137333', fontWeight: 'bold', flexShrink: 0, marginLeft: '8px' }}>
+                      ✅ Reçu le {new Date(doc.date_envoi).toLocaleDateString('fr-FR')}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
         </div>
       )}
 
@@ -341,7 +486,7 @@ const EspaceChefCentre = () => {
                   <th style={{ textAlign: 'center' }}>Action</th>
                 </tr>
               </thead>
-                            <tbody>
+              <tbody>
                 {!listeApprenants || listeApprenants.length === 0 ? (
                   <tr>
                     <td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: '#70757a', fontStyle: 'italic' }}>
@@ -392,7 +537,7 @@ const EspaceChefCentre = () => {
                   disabled={loading}
                   style={{ padding: '10px 25px', background: '#002f6c', color: '#ffffff', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', boxShadow: '0 2px 4px rgba(0,47,108,0.2)' }}
                 >
-                  {loading ? "Envoi distant..." : "📤 Transmettre la liste à l'Admin"}
+                  {loading ? "Envoi distant..." : " Transmettre la liste à l'Admin"}
                 </button>
               </div>
             )}

@@ -74,7 +74,12 @@ const DashboardAdmin = () => {
 
   const [selectedAutreCentreId, setSelectedAutreCentreId] = useState('');
 
+  const [openCardMenuId, setOpenCardMenuId] = useState(null); 
+  const [selectedChefView, setSelectedChefView] = useState(null);
+  const [chefEditForm, setChefEditForm] = useState({ nom: '', prenom: '', email: '', telephone: '', username: '', statut: 'ACTIF' });
 
+
+  const [preselectedEtabId, setPreselectedEtabId] = useState('');
   const [showAddChefModal, setShowAddChefModal] = useState(false);
   const [chefsCentre, setChefsCentre] = useState([]);
   const [openChefMenuId, setOpenChefMenuId] = useState(null);
@@ -245,13 +250,85 @@ const DashboardAdmin = () => {
   const [filterStatutTraitement, setFilterStatutTraitement] = useState('Tous');
 
 
-  const effectifTotalApprenants = 2500;
-  const effectifDiplomesRégion = 1800;
-  const totalGlobalDemandes = 515;
-  const partDiplomesAyantDemande = ((totalGlobalDemandes / effectifDiplomesRégion) * 100).toFixed(1);
-  const partGlobaleDemandeurs = ((totalGlobalDemandes / effectifTotalApprenants) * 100).toFixed(1);
+  const [documentsChef, setDocumentsChef] = useState([]);
+  const [loadingDocsChef, setLoadingDocsChef] = useState(false);
+
+  const chargerDocumentsDuChef = async (idEtab) => {
+    if (!idEtab) return;
+    setLoadingDocsChef(true);
+    try {
+      const res = await API.get(`/chefs-centre/documents/${idEtab}`);
+      setDocumentsChef(res.data || []);
+    } catch (err) {
+      console.error("Erreur chargement documents du centre :", err);
+      setDocumentsChef([]);
+    } finally {
+      setLoadingDocsChef(false);
+    }
+  };
 
  
+const [parametresSysteme, setParametresSysteme] = useState(() => {
+  const saved = localStorage.getItem('dretfp_parametres_systeme');
+  return saved ? JSON.parse(saved) : {
+    nomDirection: "DRETFP AMORON'I MANIA",
+    adresseBureau: "Ambositra 306, Région Amoron'i Mania",
+    nomSignataire: "Le Directeur Régional",
+    sessionActive: "2026",
+    portailDemandesOuvert: true,
+    saisieTerrainOuverte: true,
+    moyenneAdmission: 10,
+    seuilAssezBien: 12,
+    seuilBien: 14,
+    seuilTresBien: 16,
+    retentionHistoriqueJours: 90,
+    cleSecreteDirection: "DRETFP_AMORONIMANIA_2026",
+    emailNotification: "dretfp.amoronimania@gmail.com",
+    modeleMessageWhatsApp: "Bonjour {NOM}, votre {TITRE} est signé(e) et prêt(e) au retrait à la DRETFP Ambositra."
+  };
+});
+
+const [showSecretKey, setShowSecretKey] = useState(false);
+const [pwdForm, setPwdForm] = useState({
+  email: localStorage.getItem('user_email') || '',
+  ancienPassword: '',
+  nouveauPassword: '',
+  confirmerPassword: ''
+});
+const [pwdLoading, setPwdLoading] = useState(false);
+
+const handleUpdateAdminPassword = async () => {
+  if (!pwdForm.email || !pwdForm.ancienPassword || !pwdForm.nouveauPassword) {
+    alert("⚠️ Veuillez remplir tous les champs du mot de passe.");
+    return;
+  }
+  if (pwdForm.nouveauPassword !== pwdForm.confirmerPassword) {
+    alert("❌ La confirmation du nouveau mot de passe ne correspond pas.");
+    return;
+  }
+
+  setPwdLoading(true);
+  try {
+    await API.put('/auth/change-admin-password', {
+      email: pwdForm.email,
+      ancien_password: pwdForm.ancienPassword,
+      nouveau_password: pwdForm.nouveauPassword
+    });
+    alert("✅ Votre mot de passe administrateur a été modifié avec succès !");
+    setPwdForm({ ...pwdForm, ancienPassword: '', nouveauPassword: '', confirmerPassword: '' });
+  } catch (err) {
+    alert(err.response?.data?.detail || "❌ Erreur lors de la modification du mot de passe.");
+  } finally {
+    setPwdLoading(false);
+  }
+};
+
+const handleSaveParametres = (e) => {
+  e.preventDefault();
+  localStorage.setItem('dretfp_parametres_systeme', JSON.stringify(parametresSysteme));
+  alert("✅ Paramètres généraux de la DRETFP enregistrés avec succès !");
+};
+
 
   const [isAuthorized, setIsAuthorized] = useState(false);
 
@@ -294,13 +371,15 @@ const DashboardAdmin = () => {
   const [listeHistorique, setListeHistorique] = useState([]);
 
   const chargerHistorique = async () => {
-    try {
-      const res = await API.get('/historique/liste');
-      setListeHistorique(res.data || []);
-    } catch (err) {
-      console.error("Erreur chargement historique :", err);
-    }
-  };
+  try {
+    const jours = parametresSysteme.retentionHistoriqueJours || 90;
+    const res = await API.get(`/historique/liste?jours=${jours}`);
+    setListeHistorique(res.data || []);
+  } catch (err) {
+    console.error("Erreur chargement historique :", err);
+  }
+};
+
 
     useEffect(() => {
       if (activeMenu === 'historique') {
@@ -413,6 +492,16 @@ const DashboardAdmin = () => {
       alert("Erreur lors de la modification en BDD.");
     }
   };
+
+
+  useEffect(() => {
+  if (activeMenu === 'resultat_etablissement' && typeof chargerChefsCentre === 'function') {
+    const intervalle = setInterval(() => {
+      chargerChefsCentre();
+    }, 15000); 
+    return () => clearInterval(intervalle);
+  }
+}, [activeMenu]);
 
   const supprimerApprenant = async (id) => {
     if (window.confirm("⚠️ Confirmez-vous la radiation définitive de cet apprenant du registre ?")) {
@@ -911,7 +1000,6 @@ const DashboardAdmin = () => {
     const idCible = selectedDemande.id_demande ?? selectedDemande.id;
 
     try {
-      // 🚀 Force le passage au statut "RECU" pour transférer le dossier vers la Liste des Demandes
       await API.put(`/demandes/changer-statut-diplome/${idCible}?statut_cible=RECU`);
 
       alert(`📥 Dossier de ${selectedDemande.nom_complet || 'l\'apprenant'} pris en charge et transféré dans la Liste des Demandes !`);
@@ -1591,6 +1679,69 @@ const chargerDemandes = async () => {
   }, []); 
 
 
+  const [editingChefFields, setEditingChefFields] = useState({
+    nom: false,
+    prenom: false,
+    email: false,
+    telephone: false
+  });
+
+  const ouvrirInterfaceChef = (chef, tab) => {
+    setOpenCardMenuId(null);
+    setEditingChefFields({ nom: false, prenom: false, email: false, telephone: false });
+
+    setChefEditForm({
+      nom: chef.nom_chefcentre || chef.nom || '',
+      prenom: chef.prenom_chefcentre || chef.prenom || '',
+      email: chef.mail_chefcentre || chef.email || '',
+      telephone: chef.tel_chefcentre || chef.telephone || '',
+      username: chef.username || '',
+      statut: chef.statut || 'ACTIF'
+    });
+
+    setSelectedChefView({ chef, tab });
+  };
+
+  const handleUpdateChefDetails = async (e) => {
+  e.preventDefault();
+  if (!selectedChefView?.chef) return;
+  
+  const idChef = selectedChefView.chef.id_chefcentre ?? selectedChefView.chef.id;
+
+  try {
+    await API.put(`/chefs-centre/${idChef}`, {
+      nom_chefcentre: chefEditForm.nom,
+      prenom_chefcentre: chefEditForm.prenom,
+      mail_chefcentre: chefEditForm.email,
+      tel_chefcentre: chefEditForm.telephone,
+      username: chefEditForm.username
+    });
+
+    alert(`✅ Informations de ${chefEditForm.nom} ${chefEditForm.prenom} enregistrées dans MySQL !`);
+    
+    setSelectedChefView((prev) => ({
+      ...prev,
+      chef: {
+        ...prev.chef,
+        nom_chefcentre: chefEditForm.nom,
+        prenom_chefcentre: chefEditForm.prenom,
+        mail_chefcentre: chefEditForm.email,
+        tel_chefcentre: chefEditForm.telephone,
+        username: chefEditForm.username
+      }
+    }));
+    setEditingChefFields({ nom: false, prenom: false, email: false, telephone: false });
+    
+    if (typeof chargerChefsCentre === 'function') chargerChefsCentre();
+  } catch (err) {
+    console.error("Erreur mise à jour chef :", err);
+    alert("❌ Erreur lors de la sauvegarde dans la base de données.");
+  }
+};
+
+
+
+
   const catalogueGlobal = typeof listeDemandes !== 'undefined' ? listeDemandes : (typeof demandes !== 'undefined' ? demandes : []);
   
   const attestationsTraiteesFiltrees = catalogueGlobal.filter(d => {
@@ -1781,6 +1932,30 @@ const chargerDemandes = async () => {
   };
 
   
+const [statutsEnvoiChefs, setStatutsEnvoiChefs] = useState(() => {
+  const saved = localStorage.getItem('dretfp_statuts_envoi_chefs');
+  return saved ? JSON.parse(saved) : {};
+});
+
+const marquerAccesEnvoye = (chefObj, canal) => {
+  const cleChef = (chefObj.id_chefcentre ?? chefObj.id ?? chefObj.username)?.toString();
+  if (!cleChef) return;
+
+  setStatutsEnvoiChefs((prev) => {
+    const actuel = prev[cleChef] || { email: false, whatsapp: false };
+    const misAJour = {
+      ...prev,
+      [cleChef]: {
+        ...actuel,
+        [canal]: true,
+        date: new Date().toLocaleDateString('fr-FR')
+      }
+    };
+    localStorage.setItem('dretfp_statuts_envoi_chefs', JSON.stringify(misAJour));
+    return misAJour;
+  });
+};
+
 
 const soumettreDemandeEnLigne = async (donneesFormulaire) => {
   const payload = {
@@ -1859,6 +2034,7 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
 
 
 
+
   return (
     <div className="dashboard-container">
         <Sidebar activeMenu={activeMenu} setActiveMenu={setActiveMenu} notifCount={notifCount} setNotifCount={setNotifCount} filterType={filterType} setFilterType={setFilterType} demandes={demandes} isSidebarOpen={isSidebarOpen} setIsSidebarOpen={setIsSidebarOpen} />
@@ -1872,6 +2048,41 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
 
           <div className="header-bar" style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
              
+              <button
+                type="button"
+                onClick={() => setActiveMenu('parametres')}
+                style={{
+                  background: activeMenu === 'parametres' ? '#e8f0fe' : '#ffffff',
+                  border: activeMenu === 'parametres' ? '1px solid #1a73e8' : 'none',
+                  borderRadius: '50%',
+                  width: '35px',
+                  height: '35px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 5px rgba(0,0,0,0.1)',
+                  transition: 'all 0.2s ease-in-out',
+                  color: activeMenu === 'parametres' ? '#1a73e8' : '#333333'
+                }}
+                title="Paramètres généraux du système"
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f1f3f4';
+                  e.currentTarget.style.transform = 'scale(1.05)';
+                  e.currentTarget.style.color = '#1a73e8';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = activeMenu === 'parametres' ? '#e8f0fe' : '#ffffff';
+                  e.currentTarget.style.transform = 'scale(1)';
+                  e.currentTarget.style.color = activeMenu === 'parametres' ? '#1a73e8' : '#333333';
+                }}
+              >
+                <svg viewBox="0 0 24 24" width="19" height="19" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+              </button>
+
               <button 
                 type="button"
                 onClick={handleLogoutAdmin}
@@ -3810,28 +4021,79 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
 
                                 {openEtabMenuId === centre.id_centre && (
                                   <div className={`dropdown-action-menu ${index === etablissements.length - 1 ? 'open-upward' : ''}`}>
-                                    <button className="dropdown-action-item" onClick={() => { setSelectedEtablissement(centre); setShowDetailsEtablissement(true); setOpenEtabMenuId(null); }}>👁️ Details</button>
-                                    <button className="dropdown-action-item" onClick={() => { setSelectedEtablissement(centre); setContactEtab(centre.contact.replace('+261 ', '').replace(/\s+/g, '')); setShowEditEtablissement(true); setOpenEtabMenuId(null); }}>✏️ Modificateur</button>
-                                              
-                                  <button 
-                                    className="dropdown-action-item btn-item-delete" 
-                                    onClick={async () => { 
-                                      if(window.confirm(`⚠️ ATTENTION : Voulez-vous supprimer définitivement l'établissement "${centre.nom_etablissement}" du répertoire officiel ?`)) {
-                                        try {
-                                          await API.delete(`/etablissements/supprimer/${centre.id_centre}`);
-                                          
-                                          alert(`🗑️ L'établissement "${centre.nom_etablissement}" a été supprimé avec succès de la base SQL !`);
-                                          
-                                          await chargerEtablissements(); 
-                                        } catch (err) {
-                                          alert(err.response?.data?.detail || "Erreur lors de la suppression sur le serveur central.");
+                                    <button className="dropdown-action-item" onClick={() => { setSelectedEtablissement(centre); setShowDetailsEtablissement(true); setOpenEtabMenuId(null); }}
+                                      style={{
+                                        padding: '9px 14px',
+                                        fontSize: '0.84rem',
+                                        color: '#615d5d',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        borderBottom: '1px solid #f1f3f4',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                      }}>
+                                      👁️ Details
+                                    </button>
+                                    <button className="dropdown-action-item" onClick={() => { setSelectedEtablissement(centre); setContactEtab(centre.contact.replace('+261 ', '').replace(/\s+/g, '')); setShowEditEtablissement(true); setOpenEtabMenuId(null); }}
+                                      style={{
+                                        padding: '9px 14px',
+                                        fontSize: '0.84rem',
+                                        color: '#615d5d',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        borderBottom: '1px solid #f1f3f4',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                      }}>
+                                        ✏️ Modificateur</button>
+                                                                                 
+                                    <div
+                                      onClick={() => {
+                                        const idCentreLigne = openMenuId;
+                                        
+                                        if (typeof setOpenMenuId === 'function') setOpenMenuId(null);
+                                        setPreselectedEtabId(idCentreLigne?.toString() || '');
+                                        setShowAddChefModal(true);
+                                      }}
+                                      style={{
+                                        padding: '9px 14px',
+                                        fontSize: '0.84rem',
+                                        color: '#615d5d',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        borderBottom: '1px solid #f1f3f4',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                      }}
+                                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f3f4'; }}
+                                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                                    >
+                                      <span>👤</span> Ajouter Chef-Centre
+                                    </div>
+                                    
+                                    <button 
+                                      className="dropdown-action-item btn-item-delete" 
+                                      onClick={async () => { 
+                                        if(window.confirm(`⚠️ ATTENTION : Voulez-vous supprimer définitivement l'établissement "${centre.nom_etablissement}" du répertoire officiel ?`)) {
+                                          try {
+                                            await API.delete(`/etablissements/supprimer/${centre.id_centre}`);
+                                            
+                                            alert(`🗑️ L'établissement "${centre.nom_etablissement}" a été supprimé avec succès de la base SQL !`);
+                                            
+                                            await chargerEtablissements(); 
+                                          } catch (err) {
+                                            alert(err.response?.data?.detail || "Erreur lors de la suppression sur le serveur central.");
+                                          }
                                         }
-                                      }
-                                      setOpenEtabMenuId(null); 
-                                    }}
-                                  >
-                                    🗑️ Supprimer
-                                  </button>
+                                        setOpenEtabMenuId(null); 
+                                      }}
+                                    >
+                                      🗑️ Supprimer
+                                    </button>
+
 
                                   </div>
                                 )}
@@ -4311,386 +4573,819 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
           )}
 
           {activeMenu === 'resultat_etablissement' && (
-            <div style={{ padding: '20px', fontFamily: "'Poppins', sans-serif" }}>
-              
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px', borderBottom: '2px solid #f0f0f0', paddingBottom: '15px' }}>
-                <span style={{ fontSize: '1.4rem', fontWeight: 'bold', color: '#002f6c', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  🏢 Résultat par Établissement (Gestion des Chefs de Centre)
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setShowAddChefModal(true)}
-                  style={{ backgroundColor: '#1a73e8', color: '#ffffff', border: 'none', borderRadius: '6px', padding: '10px 20px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.9rem', boxShadow: '0 2px 4px rgba(26,115,232,0.2)' }}
-                >
-                  ➕ Ajouter un Chef de Centre
-                </button>
-              </div>
-
-              <div style={{ marginBottom: '30px' }}>
-                <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#333', fontSize: '1.1rem' }}>
-                  👥 Liste des Chefs de Centre Rattachés
-                </h3>
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: '20px' }}>
-                  {!chefsCentre || chefsCentre.length === 0 ? (
-                    <p style={{ gridColumn: '1 / -1', textAlign: 'center', color: '#5f6368', padding: '20px', background: '#fff', borderRadius: '8px', border: '1px solid #eef2f5' }}>
-                      📭 Aucun chef de centre inscrit pour le moment.
+            <div>
+              <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center', 
+                  marginTop: '10px', 
+                  marginBottom: '18px',
+                  flexWrap: 'wrap',
+                  gap: '12px'
+                }}>
+                  <div>
+                    <h3 style={{ margin: 0, color: '#002f6c', fontSize: '1.05rem', fontWeight: '700' }}>
+                      Toutes les Chefs de centre déjà occupés
+                    </h3>
+                    <p style={{ margin: '2px 0 0 0', fontSize: '0.82rem', color: '#5f6368' }}>
+                      Liste officielle des responsables habilités par établissement ({(chefsCentre || []).length} actif{(chefsCentre || []).length > 1 ? 's' : ''})
                     </p>
-                  ) : (
-                    chefsCentre.map((chef, index) => {
-                      const tabEtab = listeEtablissements || etablissementsOptions || [];
-                      const MonEtab = tabEtab.find(e => (e.id_centre ?? e.id_etablissement ?? e.id)?.toString() === chef.id_etablissement?.toString());
-                      const nomAffichageEtab = MonEtab ? MonEtab.nom_etablissement : `CENTRE ID: ${chef.id_etablissement}`;
+                  </div>
 
-                      const idChefUnique = chef.id_chefcentre || index;
-
-                      return (
-                        <div key={idChefUnique} style={{ backgroundColor: '#ffffff', borderRadius: '12px', overflow: 'visible', boxShadow: '0 4px 10px rgba(0,0,0,0.04)', border: '1px solid #eef2f5', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', position: 'relative' }}>
-                          <div style={{ position: 'absolute', top: '12px', left: '12px', zIndex: 10 }}>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedChefEtabId(chef.id_etablissement);
-                                
-                                setTimeout(() => {
-                                  window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
-                                }, 100);
-                              }}
-                              style={{ 
-                                background: '#f1f3f4', 
-                                border: '1px solid #dadce0', 
-                                borderRadius: '6px', 
-                                padding: '5px', 
-                                cursor: 'pointer', 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                justifyContent: 'center',
-                                color: '#002f6c',
-                                transition: 'all 0.2s ease'
-                              }}
-                              title="Consulter le fichier / la liste des apprenants envoyée à distance"
-                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#e3ecfa'; e.currentTarget.style.borderColor = '#1a73e8'; }}
-                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#f1f3f4'; e.currentTarget.style.borderColor = '#dadce0'; }}
-                            >
-                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', cursor: 'pointer' }}>
-                                <div style={{ width: '18px', height: '3px', backgroundColor: '#333' }}></div>
-                                <div style={{ width: '18px', height: '3px', backgroundColor: '#333' }}></div>
-                                <div style={{ width: '18px', height: '3px', backgroundColor: '#333' }}></div>
-                              </div>
-                            </button>
-                          </div>
-                          
-                          <div style={{ position: 'absolute', top: '10px', right: '10px', zIndex: 10 }}>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setOpenChefMenuId(openChefMenuId === idChefUnique ? null : idChefUnique);
-                              }}
-                              style={{ background: 'none', border: 'none', fontSize: '1.4rem', fontWeight: 'bold', color: '#5f6368', cursor: 'pointer', padding: '0 5px' }}
-                            >
-                              ⋮
-                            </button>
-
-                            {openChefMenuId === idChefUnique && (
-                              <div style={{ position: 'absolute', right: 0, top: '25px', backgroundColor: '#ffffff', border: '1px solid #dadce0', borderRadius: '6px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 999, minWidth: '160px', padding: '5px 0' }}>
-                                <button
-                                  type="button"
-                                  style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', color: '#3c4043', display: 'flex', gap: '6px' }}
-                                  onClick={() => {
-                                    setSelectedChefEtabId(chef.id_etablissement);
-                                    setOpenChefMenuId(null);
-                                  }}
-                                >
-                                   Apprenants Diplômés
-                                </button>
-
-                                <button
-                                type="button"
-                                style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', color: '#25D366', fontWeight: '500', display: 'flex', gap: '6px' }}
-                                onClick={() => {
-                                  if (!chef.tel_chefcentre) {
-                                    alert("⚠️ Impossible d'envoyer : Aucun numéro de téléphone n'est renseigné pour ce chef de centre.");
-                                    return;
-                                  }
-                                  
-                                  const numNettoye = chef.tel_chefcentre.replace(/\s+/g, '').replace('+', '').replace(/-/g, '');
-                                  
-                                  const texteWhatsapp = `🏛️ *DRETFP AMORON'I MANIA *\n\nBonjour M. le Chef de Centre,\n\nVoici votre portail d'accès sécurisé à distance pour enregistrer les fiches candidats et notes de votre établissement :\n\n🔗 *Portail Terrain :* https://onrender.com\n\nVotre identifiant unique d'accès : *${chef.username}*\n\nDirection Régionale.`;
-
-                                  const messageCode = encodeURIComponent(texteWhatsapp);
-                                  
-                                  const urlComplete = "https://wa.me/" + numNettoye + "?text=" + messageCode;
-                                  window.open(urlComplete, "_blank");
-                                  
-                                  setOpenChefMenuId(null);
-                                }}
-
-                              >
-                                Notifier par WhatsApp
-                              </button>
-
-                              <button
-                                type="button"
-                                style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', color: '#002f6c', fontWeight: '500', display: 'flex', gap: '6px' }}
-                                onClick={() => {
-                                  if (!chef.mail_chefcentre) {
-                                    alert("⚠️ Impossible d'envoyer : Aucune adresse e-mail n'est renseignée pour ce chef de centre.");
-                                    return;
-                                  }
-                                  
-                                  const sujet = encodeURIComponent("DRETFP Amoron'i Mania — Portail sécurisé de saisie — Saisie des examens");
-                                  const texteEmail = `Bonjour ${chef.nom_chefcentre} ${chef.prenom_chefcentre || ''},\n\nDans le cadre de la centralisation et de l'automatisation des examens régionaux, veuillez trouver ci-dessous votre lien d'accès unique au serveur central :\n\nPortail de connexion : ${window.location.origin}/login\n\nVotre identifiant de création de compte (Username) : ${chef.username}\n\nCordialement,\nLe Responsable de la Direction Régionale DRETFP.`;
-                                  const messageCodeEmail = encodeURIComponent(texteEmail);
-                                  
-                                  window.open(`mailto:${chef.mail_chefcentre}?subject=${sujet}&body=${messageCodeEmail}`, '_blank');
-                                  setOpenChefMenuId(null);
-                                }}
-                              >
-                                Notifier par E-mail
-                              </button>
-
-                                <button
-                                  type="button"
-                                  style={{ width: '100%', background: 'none', border: 'none', textAlign: 'left', padding: '8px 12px', fontSize: '0.85rem', cursor: 'pointer', color: '#d93025', display: 'flex', gap: '6px' }}
-                                  onClick={async () => {
-                                    if (window.confirm(`⚠️ Supprimer définitivement la fiche du chef ${chef.nom_chefcentre} ?`)) {
-                                      try {
-                                        await API.delete(`/chefs-centre/supprimer/${chef.id_chefcentre}`);
-                                        alert("🗑️ Chef de centre retiré avec succès.");
-                                        chargerChefsCentre();
-                                      } catch (err) {
-                                        alert("Erreur lors de la suppression.");
-                                      }
-                                    }
-                                    setOpenChefMenuId(null);
-                                  }}
-                                >
-                                   Révoquer
-                                </button>
-                              </div>
-                            )}
-                          </div>
-
-                          <div style={{ backgroundColor: '#e3ecfa', width: '100%', padding: '20px 0', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
-                            <div style={{ width: '60px', height: '60px', backgroundColor: '#a4c2f4', borderRadius: '50%', display: 'flex', justifyContent: 'center', alignItems: 'center', color: '#ffffff', fontSize: '1.5rem', fontWeight: 'bold', border: '3px solid #ffffff' }}>
-                              {chef.nom_chefcentre ? chef.nom_chefcentre.charAt(0).toUpperCase() : 'C'}
-                            </div>
-                          </div>
-                          <div style={{ padding: '15px 10px 20px 10px', width: '100%', boxSizing: 'border-box' }}>
-                            <h4 style={{ margin: '0 0 4px 0', fontSize: '0.95rem', fontWeight: '700', color: '#202124', textTransform: 'uppercase' }}>{chef.nom_chefcentre}</h4>
-                            <p style={{ margin: '0 0 8px 0', fontSize: '0.85rem', color: '#5f6368' }}>{chef.prenom_chefcentre || ""}</p>
-                            <div style={{ width: '50px', height: '2px', backgroundColor: '#a4c2f4', margin: '0 auto 10px auto', borderRadius: '2px' }}></div>
-                            <span style={{ display: 'inline-block', backgroundColor: '#f1f3f4', color: '#3c4043', padding: '4px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '600', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📍 {nomAffichageEtab}</span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof setShowAddChefModal === 'function') {
+                        setShowAddChefModal(true);
+                      } else if (typeof setShowModalChef === 'function') {
+                        setShowModalChef(true);
+                      } else {
+                        alert("Formulaire d'ajout prêt à être lié à votre modale !");
+                      }
+                    }}
+                    style={{
+                      backgroundColor: '#1a73e8',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '10px 16px',
+                      fontWeight: 'bold',
+                      fontSize: '0.85rem',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      boxShadow: '0 2px 5px rgba(26, 115, 232, 0.25)',
+                      transition: 'background-color 0.2s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1557b0'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#1a73e8'; }}
+                  >
+                    <span style={{ fontSize: '1.1rem', lineHeight: '1' }}>+</span>
+                    <span>Ajouter un Chef de Centre</span>
+                  </button>
                 </div>
-              </div>
+              {!selectedChefView ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '20px', marginTop: '15px' }}>               
+                    {(chefsCentre || []).map((chef, index) => {
+                      const idChefUnique = chef.id_chef ?? chef.id ?? chef.username ?? `carte_chef_${index}`;
+                      const isMenuOpen = openCardMenuId === idChefUnique;
+                      const initiale = (chef.nom_complet || chef.nom || chef.username || 'C').charAt(0).toUpperCase();
 
-            {selectedChefEtabId && (
-              <div style={{ marginTop: '30px', background: '#ffffff', padding: '20px', borderRadius: '8px', border: '1px solid #eef2f5', animation: 'fadeIn 0.2s ease-in-out' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                  <h3 style={{ margin: 0, color: '#002f6c', fontSize: '1.1rem' }}>
-                    📋 Liste des Diplômés inscrits pour : {
-                      listeEtablissements.find(e => (e.id_centre ?? e.id_etablissement ?? e.id)?.toString() === selectedChefEtabId.toString())?.nom_etablissement || `Établissement ID ${selectedChefEtabId}`
-                    }
-                  </h3>
-                  
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                    {subApprenantsCoches && subApprenantsCoches.length > 0 && (
+                      const tousLesEtab = typeof etablissements !== 'undefined' ? etablissements : (typeof listeEtablissements !== 'undefined' ? listeEtablissements : []);
+                      const idEtabChef = (chef.id_etablissement ?? chef.etablissement_id)?.toString();
+                      
+                      const etabTrouve = tousLesEtab.find(
+                        (et) => (et.id_centre ?? et.id_etablissement ?? et.id)?.toString() === idEtabChef
+                      );
+
+                      const nomReelCentre = etabTrouve?.nom_etablissement || chef.nom_etablissement || chef.etablissement || `Centre ${idEtabChef || ''}`;
+
+                    return (
                       <div 
-                        className="bulk-transfer-red-zone"
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '12px',
-                          backgroundColor: '#fde8e8', 
-                          border: '1px solid #f8b4b4', 
-                          padding: '6px 14px',
-                          borderRadius: '6px',
-                          animation: 'scaleUpModal 0.2s ease-out'
+                        key={idChefUnique} 
+                        style={{ 
+                          backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dadce0', 
+                          overflow: 'visible', position: 'relative', boxShadow: '0 2px 6px rgba(0,0,0,0.04)' 
                         }}
                       >
-                        <span style={{ color: '#c5221f', fontSize: '0.85rem', fontWeight: '600' }}>
-                          🎯 {subApprenantsCoches.length} coché(s)
-                        </span>
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (!window.confirm(`❓ Confirmez-vous le traitement et l'activation du parcours pour ces ${subApprenantsCoches.length} apprenant(s) vers le registre général ?`)) {
-                              return;
-                            }
+                        <div style={{ backgroundColor: '#e8eff7', height: '105px', borderRadius: '8px 8px 0 0', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenCardMenuId(isMenuOpen ? null : idChefUnique);
+                            }}
+                            style={{
+                              position: 'absolute', top: '12px', left: '12px',
+                              background: isMenuOpen ? '#002f6c' : 'transparent',
+                              color: isMenuOpen ? '#ffffff' : '#1f1f1f',
+                              border: 'none', borderRadius: '4px', width: '30px', height: '30px',
+                              fontSize: '1.1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}
+                            title="Options du Chef de Centre"
+                          >
+                            ☰
+                          </button>
 
-                            let succesCount = 0;
-                            
-                            for (const idApp of subApprenantsCoches) {
-                              const eleve = apprenants.find(a => (a.id_apprenant || a.id) === idApp);
-                              if (!eleve) continue;
+                          {isMenuOpen && (
+                            <div style={{
+                              position: 'absolute', top: '45px', left: '12px', zIndex: 50,
+                              backgroundColor: '#ffffff', border: '1px solid #dadce0', borderRadius: '6px',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.15)', width: '195px', overflow: 'hidden'
+                            }}>
+                              <div
+                                onClick={() => ouvrirInterfaceChef(chef, 'profil')}
+                                style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#202124', cursor: 'pointer', borderBottom: '1px solid #f1f3f4', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f3f4'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+                              >
+                                <span>👤</span> Profil complet
+                              </div>
 
-                              try {
-                                const donneesModifiees = {
-                                  ...eleve,
-                                  progression: "AUCUNE_DEMANDE" // Réinitialisation pour affichage dans la liste principale
-                                };
+                              <div
+                                onClick={() => ouvrirInterfaceChef(chef, 'documents')}
+                                style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#202124', cursor: 'pointer', borderBottom: '1px solid #f1f3f4', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f3f4'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+                              >
+                                <span>📂</span> Liste des documents
+                              </div>
 
-                                await API.put(`/apprenants/modifier/${eleve.im_apprenant}`, donneesModifiees);
-                                succesCount++;
-                              } catch (apiErr) {
-                                console.error(`❌ Échec de transfert pour ${eleve.im_apprenant} :`, apiErr);
+                              <div
+                                onClick={() => ouvrirInterfaceChef(chef, 'parametres')}
+                                style={{ padding: '10px 14px', fontSize: '0.85rem', color: '#202124', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: '500' }}
+                                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f1f3f4'}
+                                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#ffffff'}
+                              >
+                                <span>⚙️</span> Paramètres
+                              </div>
+                            </div>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (chef.a_envoye_donnees) {
+                                ouvrirInterfaceChef(chef, 'apprenants');
+                              } else {
+                                alert(`⏳ Aucune liste ni rapport n'a encore été transmis par ${chef.nom_chefcentre} pour cet établissement.`);
                               }
+                            }}
+                            title={
+                              chef.a_envoye_donnees
+                                ? `🔔 Transmission reçue : ${chef.nb_apprenants_envoyes} apprenant(s) envoyé(s). Cliquez pour consulter.`
+                                : "🔕 En attente de transmission des listes / rapports"
+                            }
+                            style={{
+                              position: 'absolute',
+                              top: '12px',
+                              right: '12px',
+                              backgroundColor: chef.a_envoye_donnees ? '#ffffff' : 'transparent',
+                              border: chef.a_envoye_donnees ? '1px solid #d2e3fc' : 'none',
+                              borderRadius: '50%',
+                              width: '32px',
+                              height: '32px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              cursor: 'pointer',
+                              boxShadow: chef.a_envoye_donnees ? '0 2px 5px rgba(26, 115, 232, 0.2)' : 'none',
+                              transition: 'transform 0.2s'
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
+                          >
+                            <svg
+                              viewBox="0 0 24 24"
+                              width="17"
+                              height="17"
+                              stroke={chef.a_envoye_donnees ? '#1a73e8' : '#80868b'}
+                              strokeWidth="2.2"
+                              fill={chef.a_envoye_donnees ? '#e8f0fe' : 'none'}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            >
+                              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                            </svg>
+
+                            {chef.a_envoye_donnees && (
+                              <span
+                                style={{
+                                  position: 'absolute',
+                                  top: '-4px',
+                                  right: '-4px',
+                                  backgroundColor: '#ea4335',
+                                  color: '#ffffff',
+                                  fontSize: '0.65rem',
+                                  fontWeight: 'bold',
+                                  minWidth: '16px',
+                                  height: '16px',
+                                  borderRadius: '10px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  padding: '0 4px',
+                                  border: '1.5px solid #ffffff'
+                                }}
+                              >
+                                {chef.nb_apprenants_envoyes}
+                              </span>
+                            )}
+                          </button>
+
+
+                          <div style={{ position: 'relative', width: '54px', height: '54px' }}>
+                            <div style={{ 
+                              width: '54px', 
+                              height: '54px', 
+                              borderRadius: '50%', 
+                              backgroundColor: '#9ab9e8', 
+                              color: '#ffffff', 
+                              fontSize: '1.3rem', 
+                              fontWeight: 'bold', 
+                              display: 'flex', 
+                              alignItems: 'center', 
+                              justifyContent: 'center' 
+                            }}>
+                              {initiale}
+                            </div>
+
+                            <span
+                              title={chef.est_connecte ? " Compte activé et connecté sur le Chef de Centre" : " Pas encore connecté / Non activé"}
+                              style={{
+                                position: 'absolute',
+                                bottom: '1px',
+                                right: '1px',
+                                width: '13px',
+                                height: '13px',
+                                borderRadius: '50%',
+                                backgroundColor: chef.est_connecte ? '#22c55e' : '#ffffff',
+                                border: '2px solid #ffffff',
+                                boxShadow: '0 1px 3px rgba(0,0,0,0.25)'
+                              }}
+                            />
+                          </div>
+
+                        </div>
+
+                        <div style={{ padding: '16px', textAlign: 'center' }}>
+                          <div style={{ fontWeight: '700', color: '#202124', fontSize: '0.95rem', textTransform: 'uppercase' }}>
+                            {chef.nom_complet || chef.nom || chef.username || 'Responsable'}
+                          </div>
+                          <div style={{ color: '#5f6368', fontSize: '0.85rem', marginTop: '2px' }}>
+                            {chef.prenom || chef.email || ''}
+                          </div>
+                          <div style={{ marginTop: '12px', display: 'inline-block', backgroundColor: '#f1f3f4', padding: '4px 10px', borderRadius: '4px', fontSize: '0.78rem', fontWeight: '600', color: '#3c4043' }}>
+                            🏛️  {nomReelCentre}
+                          </div>
+
+                          {(() => {
+                            const cleStatut = (chef.id_chefcentre ?? chef.id ?? chef.username)?.toString();
+                            const statutEnvoi = statutsEnvoiChefs[cleStatut] || { email: false, whatsapp: false };
+
+                            let texteLegende = "Aucun accès envoyé";
+                            let couleurFond = "#fef7e0";
+                            let couleurTexte = "#b06000";
+                            let couleurBordure = "#fde293";
+                            let iconeLegende = "⏳";
+
+                            if (statutEnvoi.email && statutEnvoi.whatsapp) {
+                              texteLegende = "Accès envoyé (E-mail & WhatsApp)";
+                              couleurFond = "#e6f4ea";
+                              couleurTexte = "#137333";
+                              couleurBordure = "#ceead6";
+                              iconeLegende = "✅";
+                            } else if (statutEnvoi.email) {
+                              texteLegende = "Accès envoyé sur Email";
+                              couleurFond = "#e8f0fe";
+                              couleurTexte = "#1a73e8";
+                              couleurBordure = "#d2e3fc";
+                              iconeLegende = "✉️";
+                            } else if (statutEnvoi.whatsapp) {
+                              texteLegende = "Accès envoyé sur WhatsApp";
+                              couleurFond = "#e6f4ea";
+                              couleurTexte = "#137333";
+                              couleurBordure = "#ceead6";
+                              iconeLegende = "💬";
                             }
 
-                            alert(`📊 Synchronisation centrale réussie :\n✅ ${succesCount} apprenant(s) synchronisé(s) dans la Liste des Apprenants !`);
+                            return (
+                              <div style={{ marginTop: '10px' }}>
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '5px',
+                                  backgroundColor: couleurFond,
+                                  color: couleurTexte,
+                                  border: `1px solid ${couleurBordure}`,
+                                  padding: '3px 10px',
+                                  borderRadius: '12px',
+                                  fontSize: '0.73rem',
+                                  fontWeight: '600'
+                                }}>
+                                  <span>{iconeLegende}</span>
+                                  <span>{texteLegende}</span>
+                                </span>
+                              </div>
+                            );
+                          })()}
+
+
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dadce0', padding: '24px', marginTop: '15px' }}>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e0e0e0', paddingBottom: '16px', marginBottom: '20px', flexWrap: 'wrap', gap: '10px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedChefView(null)}
+                        style={{ padding: '8px 14px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', color: '#333' }}
+                      >
+                        ← 
+                      </button>
+                      <div>
+                        <h3 style={{ margin: 0, color: '#002f6c', fontSize: '1.1rem' }}>
+                          {selectedChefView.chef.nom} {selectedChefView.chef.prenom}
+                        </h3>
+                        <span style={{ fontSize: '0.82rem', color: '#5f6368' }}>
+                           {selectedChefView.chef.nom_etablissement || 'Établissement'} • Identifiant : <strong>{selectedChefView.chef.username}</strong>
+                        </span>
+                      </div>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedChefView({ ...selectedChefView, tab: 'profil' })}
+                        style={{
+                          padding: '8px 14px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem',
+                          backgroundColor: selectedChefView.tab === 'profil' ? '#1a73e8' : '#f1f3f4',
+                          color: selectedChefView.tab === 'profil' ? '#ffffff' : '#333'
+                        }}
+                      >
+                        👤 Profil
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedChefView({ ...selectedChefView, tab: 'documents' })}
+                        style={{
+                          padding: '8px 14px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem',
+                          backgroundColor: selectedChefView.tab === 'documents' ? '#1a73e8' : '#f1f3f4',
+                          color: selectedChefView.tab === 'documents' ? '#ffffff' : '#333'
+                        }}
+                      >
+                        📋 Liste des documents
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedChefView({ ...selectedChefView, tab: 'parametres' })}
+                        style={{
+                          padding: '8px 14px', borderRadius: '4px', border: 'none', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem',
+                          backgroundColor: selectedChefView.tab === 'parametres' ? '#1a73e8' : '#f1f3f4',
+                          color: selectedChefView.tab === 'parametres' ? '#ffffff' : '#333'
+                        }}
+                      >
+                        ⚙️ Paramètres
+                      </button>
+                    </div>
+                  </div>
+
+                    {selectedChefView.tab === 'profil' && (
+                      <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
+                        <form onSubmit={handleUpdateChefDetails} style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '6px', border: '1px solid #e0e0e0' }}>
+                          <h4 style={{ margin: '0 0 16px 0', color: '#002f6c' }}>Renseignements du Responsable</h4>
+                          
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                             
-                            if (typeof chargerApprenants === 'function') await chargerApprenants();
-                            setSubApprenantsCoches([]); // Vider la sélection locale
-                          }}
-                          style={{
-                            backgroundColor: '#c5221f', // Bouton rouge
-                            color: '#ffffff',
-                            border: 'none',
-                            padding: '6px 12px',
-                            borderRadius: '4px',
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                            fontSize: '0.82rem',
-                            boxShadow: '0 2px 4px rgba(197,34,31,0.2)'
-                          }}
-                        >
-                          🚀 Transfert vers la liste de l'apprenant
-                        </button>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Nom</label>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input 
+                                  type="text" 
+                                  value={chefEditForm.nom} 
+                                  readOnly={!editingChefFields.nom}
+                                  onChange={(e) => setChefEditForm({ ...chefEditForm, nom: e.target.value })} 
+                                  style={{ 
+                                    flex: 1, padding: '8px', borderRadius: '4px', boxSizing: 'border-box',
+                                    border: editingChefFields.nom ? '1px solid #1a73e8' : '1px solid #ccc',
+                                    backgroundColor: editingChefFields.nom ? '#ffffff' : '#eef1f5',
+                                    color: '#202124', fontWeight: '500'
+                                  }} 
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingChefFields({ ...editingChefFields, nom: !editingChefFields.nom })}
+                                  title="Modifier le nom"
+                                  style={{
+                                    padding: '7px 10px', borderRadius: '4px', cursor: 'pointer',
+                                    border: '1px solid #dadce0',
+                                    backgroundColor: editingChefFields.nom ? '#e8f0fe' : '#ffffff'
+                                  }}
+                                >
+                                  ✏️
+                                </button>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Prénom</label>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input 
+                                  type="text" 
+                                  value={chefEditForm.prenom} 
+                                  readOnly={!editingChefFields.prenom}
+                                  onChange={(e) => setChefEditForm({ ...chefEditForm, prenom: e.target.value })} 
+                                  style={{ 
+                                    flex: 1, padding: '8px', borderRadius: '4px', boxSizing: 'border-box',
+                                    border: editingChefFields.prenom ? '1px solid #1a73e8' : '1px solid #ccc',
+                                    backgroundColor: editingChefFields.prenom ? '#ffffff' : '#eef1f5',
+                                    color: '#202124', fontWeight: '500'
+                                  }} 
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingChefFields({ ...editingChefFields, prenom: !editingChefFields.prenom })}
+                                  title="Modifier le prénom"
+                                  style={{
+                                    padding: '7px 10px', borderRadius: '4px', cursor: 'pointer',
+                                    border: '1px solid #dadce0',
+                                    backgroundColor: editingChefFields.prenom ? '#e8f0fe' : '#ffffff'
+                                  }}
+                                >
+                                  ✏️
+                                </button>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Adresse E-mail</label>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input 
+                                  type="email" 
+                                  value={chefEditForm.email} 
+                                  readOnly={!editingChefFields.email}
+                                  onChange={(e) => setChefEditForm({ ...chefEditForm, email: e.target.value })} 
+                                  style={{ 
+                                    flex: 1, padding: '8px', borderRadius: '4px', boxSizing: 'border-box',
+                                    border: editingChefFields.email ? '1px solid #1a73e8' : '1px solid #ccc',
+                                    backgroundColor: editingChefFields.email ? '#ffffff' : '#eef1f5',
+                                    color: '#202124', fontWeight: '500'
+                                  }} 
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingChefFields({ ...editingChefFields, email: !editingChefFields.email })}
+                                  title="Modifier l'e-mail"
+                                  style={{
+                                    padding: '7px 10px', borderRadius: '4px', cursor: 'pointer',
+                                    border: '1px solid #dadce0',
+                                    backgroundColor: editingChefFields.email ? '#e8f0fe' : '#ffffff'
+                                  }}
+                                >
+                                  ✏️
+                                </button>
+                              </div>
+                            </div>
+
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Téléphone / WhatsApp</label>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input 
+                                  type="text" 
+                                  value={chefEditForm.telephone} 
+                                  readOnly={!editingChefFields.telephone}
+                                  onChange={(e) => setChefEditForm({ ...chefEditForm, telephone: e.target.value })} 
+                                  style={{ 
+                                    flex: 1, padding: '8px', borderRadius: '4px', boxSizing: 'border-box',
+                                    border: editingChefFields.telephone ? '1px solid #1a73e8' : '1px solid #ccc',
+                                    backgroundColor: editingChefFields.telephone ? '#ffffff' : '#eef1f5',
+                                    color: '#202124', fontWeight: '500'
+                                  }} 
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingChefFields({ ...editingChefFields, telephone: !editingChefFields.telephone })}
+                                  title="Modifier le numéro"
+                                  style={{
+                                    padding: '7px 10px', borderRadius: '4px', cursor: 'pointer',
+                                    border: '1px solid #dadce0',
+                                    backgroundColor: editingChefFields.telephone ? '#e8f0fe' : '#ffffff'
+                                  }}
+                                >
+                                  ✏️
+                                </button>
+                              </div>
+                            </div>
+
+                          </div>
+
+                          <button 
+                            type="submit" 
+                            style={{ marginTop: '18px', backgroundColor: '#002f6c', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 18px', fontWeight: 'bold', cursor: 'pointer' }}
+                          >
+                            💾 Enregistrer les modifications
+                          </button>
+                        </form>
+                        <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '6px', border: '1px solid #e0e0e0', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                          <h4 style={{ margin: '0 0 8px 0', color: '#002f6c' }}>Actions Rapides</h4>
+                          
+                           <button
+                              type="button"
+                              onClick={async () => {
+                                const emailDest = (chefEditForm.email || selectedChefView.chef.mail_chefcentre || '').trim();
+                                const nomDest = `${chefEditForm.nom || selectedChefView.chef.nom_chefcentre || ''} ${chefEditForm.prenom || selectedChefView.chef.prenom_chefcentre || ''}`.trim();
+                                const userDest = chefEditForm.username || selectedChefView.chef.username || '';
+
+                                if (!emailDest) {
+                                  alert("⚠️ Aucune adresse e-mail renseignée pour ce responsable.");
+                                  return;
+                                }
+
+                                try {
+                                  await API.post('/chefs-centre/envoyer-acces-email', {
+                                    destinataire: emailDest,
+                                    nom_complet: nomDest,
+                                    username: userDest
+                                  });
+                                  marquerAccesEnvoye(selectedChefView.chef, 'email');
+      
+                                  alert(`✅ E-mail d'accès envoyé automatiquement à ${emailDest} !`);
+                                } catch (err) {
+                                  alert(err.response?.data?.detail || "❌ Erreur lors de l'envoi automatique de l'e-mail.");
+                                }
+                              }}
+                              style={{
+                                backgroundColor: '#1a73e8', color: '#ffffff', border: 'none', borderRadius: '4px',
+                                padding: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center', gap: '8px'
+                              }}
+                            >
+                              <span>✉️</span> Envoyer ses accès par E-mail
+                           </button>
+
+                           <button
+                              type="button"
+                              onClick={async () => {
+                                const telDest = (chefEditForm.telephone || selectedChefView.chef.tel_chefcentre || '').trim();
+                                const emailDest = (chefEditForm.email || selectedChefView.chef.mail_chefcentre || 'chef@dretfp.mg').trim();
+                                const nomDest = `${chefEditForm.nom || selectedChefView.chef.nom_chefcentre || ''} ${chefEditForm.prenom || selectedChefView.chef.prenom_chefcentre || ''}`.trim();
+                                const userDest = chefEditForm.username || selectedChefView.chef.username || '';
+
+                                if (!telDest) {
+                                  alert("⚠️ Aucun numéro de téléphone renseigné pour ce responsable.");
+                                  return;
+                                }
+
+                                try {
+                                  await API.post('/chefs-centre/envoyer-acces-whatsapp', {
+                                    destinataire: emailDest,
+                                    nom_complet: nomDest,
+                                    username: userDest,
+                                    telephone: telDest
+                                  });
+                                  marquerAccesEnvoye(selectedChefView.chef, 'whatsapp');
+                                  alert(`✅ Message WhatsApp envoyé automatiquement au ${telDest} !`);
+                                } catch (err) {
+                                  alert(err.response?.data?.detail || "❌ Erreur lors de l'envoi WhatsApp (vérifiez la configuration API).");
+                                }
+                              }}
+                              style={{
+                                backgroundColor: '#25d366', color: '#ffffff', border: 'none', borderRadius: '4px',
+                                padding: '10px', fontWeight: 'bold', cursor: 'pointer', display: 'flex',
+                                alignItems: 'center', justifyContent: 'center', gap: '8px'
+                              }}
+                            >
+                              <span>💬</span> Envoyer ses accès par WhatsApp
+                           </button>
+
+                           <button
+                              type="button"
+                              onClick={async () => {
+                                const userACopier = chefEditForm.username || selectedChefView.chef.username || '';
+                                if (!userACopier) {
+                                  alert("⚠️ Aucun identifiant disponible.");
+                                  return;
+                                }
+                                try {
+                                  await navigator.clipboard.writeText(userACopier);
+                                  alert(`📋 Identifiant "${userACopier}" copié dans le presse-papiers !`);
+                                } catch (err) {
+                                  const tempInput = document.createElement('input');
+                                  tempInput.value = userACopier;
+                                  document.body.appendChild(tempInput);
+                                  tempInput.select();
+                                  document.execCommand('copy');
+                                  document.body.removeChild(tempInput);
+                                  alert(`📋 Identifiant "${userACopier}" copié !`);
+                                }
+                              }}
+                              style={{
+                                backgroundColor: '#ffffff',
+                                color: '#333333',
+                                border: '1px solid #ccc',
+                                borderRadius: '4px',
+                                padding: '10px',
+                                fontWeight: '600',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                transition: 'background-color 0.2s'
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f3f4'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                            >
+                              <span>📋</span> Copier son identifiant
+                           </button>
+
+                           <button
+                              type="button"
+                              onClick={async () => {
+                                const idChef = selectedChefView.chef.id_chefcentre ?? selectedChefView.chef.id;
+                                const nomComplet = `${chefEditForm.nom || selectedChefView.chef.nom_chefcentre || ''} ${chefEditForm.prenom || selectedChefView.chef.prenom_chefcentre || ''}`.trim();
+
+                                if (!window.confirm(`⚠️ ATTENTION : Voulez-vous vraiment révoquer et supprimer définitivement ${nomComplet} ?\n\nSon accès au portail terrain sera immédiatement coupé.`)) {
+                                  return;
+                                }
+
+                                try {
+                                  await API.delete(`/chefs-centre/${idChef}`);
+                                  alert(`✅ Le responsable ${nomComplet} a été révoqué avec succès.`);
+                                  
+                                  setSelectedChefView(null);
+                                  if (typeof chargerChefsCentre === 'function') {
+                                    await chargerChefsCentre();
+                                  }
+                                } catch (err) {
+                                  console.error("Erreur lors de la révocation :", err);
+                                  alert(err.response?.data?.detail || "❌ Impossible de révoquer ce chef de centre sur le serveur.");
+                                }
+                              }}
+                              style={{
+                                backgroundColor: '#fce8e6',
+                                color: '#c5221f',
+                                border: '1px solid #fad2cf',
+                                borderRadius: '4px',
+                                padding: '10px',
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                marginTop: 'auto',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '8px',
+                                transition: 'background-color 0.2s'
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fad2cf'; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fce8e6'; }}
+                            >
+                              <span>🗑️</span> Révoquer ce Chef de Centre
+                           </button>
+
+                        </div>
                       </div>
                     )}
 
-                    <button 
-                      type="button" 
-                      onClick={() => { setSelectedChefEtabId(null); setSubApprenantsCoches([]); }}
-                      style={{ background: '#f1f3f4', border: 'none', padding: '8px 14px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600' }}
-                    >
-                      Fermer la liste ×
-                    </button>
-                  </div>
+                  {selectedChefView.tab === 'documents' && (() => {
+                    const baseUrlServeur = API.defaults.baseURL.replace('/api', '');
+
+                    return (
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                          <div>
+                            <h4 style={{ margin: 0, color: '#002f6c' }}>
+                              📂 Documents transmis par {selectedChefView.chef.nom_chefcentre} ({documentsChef.length})
+                            </h4>
+                            <p style={{ margin: '3px 0 0 0', fontSize: '0.8rem', color: '#5f6368' }}>
+                              Fichiers officiels reçus depuis le terrain (Excel, Word, PDF)
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => chargerDocumentsDuChef(selectedChefView.chef.id_etablissement)}
+                            style={{ padding: '7px 12px', backgroundColor: '#f1f3f4', border: '1px solid #dadce0', borderRadius: '4px', cursor: 'pointer', fontWeight: '600', fontSize: '0.82rem' }}
+                          >
+                            🔄 Actualiser
+                          </button>
+                        </div>
+
+                        {loadingDocsChef ? (
+                          <div style={{ textAlign: 'center', padding: '30px', color: '#5f6368' }}>Chargement des documents...</div>
+                        ) : (
+                          <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr>
+                                <th style={{ width: '110px' }}>Format</th>
+                                <th>Nom du fichier</th>
+                                <th style={{ width: '180px' }}>Date de transmission</th>
+                                <th style={{ width: '160px', textAlign: 'center' }}>Action</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {documentsChef.length === 0 ? (
+                                <tr>
+                                  <td colSpan="4" style={{ textAlign: 'center', padding: '30px', color: '#70757a', fontStyle: 'italic' }}>
+                                    📭 Aucun document (Excel, Word ou PDF) n'a encore été envoyé par ce chef de centre.
+                                  </td>
+                                </tr>
+                              ) : (
+                                documentsChef.map((doc) => {
+                                  const estExcel = ['XLSX', 'XLS'].includes(doc.type_fichier);
+                                  const estPdf = doc.type_fichier === 'PDF';
+                                  const badgeBg = estExcel ? '#e6f4ea' : (estPdf ? '#fce8e6' : '#e8f0fe');
+                                  const badgeColor = estExcel ? '#137333' : (estPdf ? '#c5221f' : '#1a73e8');
+                                  const iconeDoc = estExcel ? '📊' : (estPdf ? '📕' : '📘');
+
+                                  return (
+                                    <tr key={doc.id_document}>
+                                      <td>
+                                        <span style={{
+                                          padding: '4px 8px',
+                                          borderRadius: '4px',
+                                          fontSize: '0.75rem',
+                                          fontWeight: 'bold',
+                                          backgroundColor: badgeBg,
+                                          color: badgeColor,
+                                          display: 'inline-flex',
+                                          alignItems: 'center',
+                                          gap: '4px'
+                                        }}>
+                                          <span>{iconeDoc}</span> {doc.type_fichier}
+                                        </span>
+                                      </td>
+                                      <td><strong>{doc.nom_fichier}</strong></td>
+                                      <td style={{ fontSize: '0.85rem', color: '#5f6368' }}>
+                                        {new Date(doc.date_envoi).toLocaleString('fr-FR', {
+                                          day: '2-digit', month: '2-digit', year: 'numeric',
+                                          hour: '2-digit', minute: '2-digit'
+                                        })}
+                                      </td>
+                                      <td style={{ textAlign: 'center' }}>
+                                        <a
+                                          href={`${baseUrlServeur}${doc.chemin_stockage}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          download={doc.nom_fichier}
+                                          style={{
+                                            display: 'inline-block',
+                                            padding: '6px 12px',
+                                            backgroundColor: '#002f6c',
+                                            color: '#ffffff',
+                                            borderRadius: '4px',
+                                            textDecoration: 'none',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 'bold'
+                                          }}
+                                        >
+                                          📥 Télécharger
+                                        </a>
+                                      </td>
+                                    </tr>
+                                  );
+                                })
+                              )}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+
+                  {selectedChefView.tab === 'parametres' && (
+                    <div style={{ maxWidth: '550px', backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '6px', border: '1px solid #e0e0e0' }}>
+                      <h4 style={{ margin: '0 0 14px 0', color: '#002f6c' }}>⚙️ Paramètres d'Accès & Permissions du Centre</h4>
+                      
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', marginBottom: '4px' }}>Identifiant de connexion officiel (Username)</label>
+                          <input
+                            type="text"
+                            value={chefEditForm.username}
+                            onChange={(e) => setChefEditForm({ ...chefEditForm, username: e.target.value })}
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box', fontWeight: 'bold' }}
+                          />
+                        </div>
+
+                        <div>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', marginBottom: '4px' }}>État du compte sur le terrain</label>
+                          <select
+                            value={chefEditForm.statut}
+                            onChange={(e) => setChefEditForm({ ...chefEditForm, statut: e.target.value })}
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', backgroundColor: '#fff' }}
+                          >
+                            <option value="ACTIF">🟢 ACTIF (Autorisé à transmettre les fiches et notes)</option>
+                            <option value="SUSPENDU">🔴 SUSPENDU (Accès bloqué temporairement)</option>
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                          <button
+                            type="button"
+                            onClick={handleUpdateChefDetails}
+                            style={{ backgroundColor: '#002f6c', color: '#fff', border: 'none', borderRadius: '4px', padding: '10px 16px', fontWeight: 'bold', cursor: 'pointer' }}
+                          >
+                            ✅ Appliquer les paramètres
+                          </button>
+                        </div>
+
+                      </div>
+
+                    </div>
+                  )}
+
                 </div>
-
-                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: '40px', textAlign: 'center' }}>
-                        <input
-                          type="checkbox"
-                          checked={
-                            apprenants.filter(app => (app.etablissement_id ?? app.centre_id)?.toString() === selectedChefEtabId.toString()).length > 0 &&
-                            subApprenantsCoches.length === apprenants.filter(app => (app.etablissement_id ?? app.centre_id)?.toString() === selectedChefEtabId.toString()).length
-                          }
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              const idsFiltres = apprenants
-                                .filter(app => (app.etablissement_id ?? app.centre_id)?.toString() === selectedChefEtabId.toString())
-                                .map(app => app.id_apprenant || app.id);
-                              setSubApprenantsCoches(idsFiltres);
-                            } else {
-                              setSubApprenantsCoches([]);
-                            }
-                          }}
-                          style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
-                        />
-                      </th>
-                      <th>N° IM (Matricule)</th>
-                      <th>Nom & Prénoms</th>
-                      <th>Date & Lieu Naissance</th>
-                      <th>Examen & Session</th>
-                      <th>Établissement & Secteur</th> 
-                      <th>Filière & Métier</th>
-                      <th>Mention</th>
-                      <th>Statut Demande</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {apprenants.filter(app => (app.etablissement_id ?? app.centre_id)?.toString() === selectedChefEtabId.toString()).length === 0 ? (
-                      <tr>
-                        <td colSpan="9" style={{ textAlign: 'center', padding: '20px', color: '#5f6368', fontStyle: 'italic' }}>
-                          📭 Aucun apprenant enregistré pour cet établissement dans la base de données.
-                        </td>
-                      </tr>
-                    ) : (
-                      apprenants
-                        .filter(app => (app.etablissement_id ?? app.centre_id)?.toString() === selectedChefEtabId.toString())
-                        .map((app, i) => {
-                          const idLigneUnik = app.id_apprenant || app.id || i;
-                          const isCochee = subApprenantsCoches.includes(idLigneUnik);
-
-                          const nomEtab = listeEtablissements.find(e => (e.id_etablissement ?? e.id ?? e.id_centre)?.toString() === (app.etablissement_id ?? app.centre_id)?.toString())?.nom_etablissement || "Centre d'origine";
-                          const nomSec = (listeSecteurs || []).find(s => (s.id_secteur ?? s.id)?.toString() === app.secteur_id?.toString())?.nom_secteur || "Secteur non défini";
-                          const nomFil = (listeFilieres || []).find(f => (f.id_filiere ?? f.id)?.toString() === app.filiere_id?.toString())?.nom_filiere || "Filière non définie";
-                          const nomMet = (listeMetiers || []).find(m => (m.id_metier ?? m.id)?.toString() === app.metier_id?.toString())?.nom_metier || "Métier non défini";
-
-                          return (
-                            <tr key={idLigneUnik} style={{ backgroundColor: isCochee ? '#f8fafc' : 'transparent' }}>
-                              <td style={{ textAlign: 'center' }}>
-                                <input
-                                  type="checkbox"
-                                  checked={isCochee}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSubApprenantsCoches(prev => [...prev, idLigneUnik]);
-                                    } else {
-                                      setSubApprenantsCoches(prev => prev.filter(id => id !== idLigneUnik));
-                                    }
-                                  }}
-                                  style={{ cursor: 'pointer', transform: 'scale(1.1)' }}
-                                />
-                              </td>
-                              <td><strong>{app.im_apprenant || "N/A"}</strong></td>
-                              <td style={{ fontWeight: '500' }}>{app.nom_apprenant} {app.prenom_apprenant || ""}</td>
-                              <td>{app.date_naiss || "N/A"} à <span style={{ textTransform: 'uppercase', fontSize: '0.82rem' }}>{app.lieu_naiss || "Inconnu"}</span></td>
-                                                            <td style={{ fontSize: '0.88rem' }}>
-                                <div style={{ fontWeight: 'bold', color: '#4b4f55' }}>
-                                  {(() => {
-                                    const idBrut = app.examen_id?.toString();
-                                    const exTrouve = (listeExamens || []).find(ex => (ex.id_examen ?? ex.id)?.toString() === idBrut);
-                                    return exTrouve ? (exTrouve.nom_exam ?? exTrouve.nom_examen) : (idBrut || 'CAP');
-                                  })()}
-                                </div>
-                                <div style={{ fontSize: '0.78rem', color: '#5f6368' }}>({app.session || '2026'})</div>
-                              </td>
-
-                              <td>
-                                <strong>{nomEtab}</strong>
-                                <br/>
-                                <small style={{ color: '#5f6368', fontStyle: 'italic' }}>{nomSec}</small>
-                              </td>
-
-                              <td>
-                                <strong style={{ color: '#3c4043' }}>{nomFil}</strong>
-                                <br/>
-                                <small style={{ color: '#5f6368', fontStyle: 'italic' }}>{nomMet}</small>
-                              </td>
-
-                              <td><em style={{ color: '#1a73e8', fontWeight: 600 }}>{app.mention || 'Passable'}</em></td>
-                              
-                              <td>
-                                {(() => {
-                                  const dmdAssociee = (demandes || []).find(d => d.im_apprenant?.toString() === app.im_apprenant?.toString());
-                                  const statutDmd = (dmdAssociee?.statut || "AUCUNE_DEMANDE").toUpperCase();
-
-                                  if (statutDmd === 'TERMINER') return <span className="status-badge valide">✅ Terminé / Signé</span>;
-                                  if (statutDmd === 'EN_COURS' || statutDmd === 'EN_TRAITEMENT') return <span className="status-badge en-cours" style={{ backgroundColor: '#e8f0fe', color: '#1a73e8' }}>⏳ En traitement</span>;
-                                  if (statutDmd === 'EN_ATTENTE') return <span className="status-badge en-attente" style={{ backgroundColor: '#fef7e0', color: '#b06000' }}>⏳ En attente</span>;
-                                  return <span className="status-badge offline" style={{ backgroundColor: '#f1f3f4', color: '#5f6368' }}>❌ Aucune</span>;
-                                })()}
-                              </td>
-                            </tr>
-                          );
-                        })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
-
+              )}
             </div>
           )}
 
@@ -4812,6 +5507,330 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
             </div>
           )}
 
+          {activeMenu === 'parametres' && (
+            <div style={{ backgroundColor: '#f8f9fa', padding: '24px', borderRadius: '8px', border: '1px solid #dadce0', fontFamily: "'Segoe UI', Roboto, sans-serif" }}>
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e0e0e0', paddingBottom: '16px', marginBottom: '20px' }}>
+                <div>
+                  <h3 style={{ margin: 0, color: '#002f6c', fontSize: '1.2rem' }}>⚙️ Paramètres Généraux du Système</h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '0.85rem', color: '#5f6368' }}>
+                    Configuration institutionnelle, règles d'examens, sécurité et maintenance — DRETFP Amoron'i Mania
+                  </p>
+                </div>
+                
+              </div>
+
+              <form onSubmit={handleSaveParametres}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                  
+                  <div style={{ backgroundColor: '#ffffff', padding: '18px', borderRadius: '6px', border: '1px solid #e0e0e0' }}>
+                    <h4 style={{ margin: '0 0 14px 0', color: '#002f6c', fontSize: '0.95rem', borderBottom: '1px solid #f1f3f4', paddingBottom: '8px' }}>
+                      🏛️ 1. Identité & Signataire des Titres
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Intitulé de la Direction</label>
+                        <input
+                          type="text"
+                          value={parametresSysteme.nomDirection}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, nomDirection: e.target.value })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Adresse du Bureau Central</label>
+                        <input
+                          type="text"
+                          value={parametresSysteme.adresseBureau}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, adresseBureau: e.target.value })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Nom & Titre du Signataire (PDF Attestations)</label>
+                        <input
+                          type="text"
+                          value={parametresSysteme.nomSignataire}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, nomSignataire: e.target.value })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#ffffff', padding: '18px', borderRadius: '6px', border: '1px solid #e0e0e0' }}>
+                    <h4 style={{ margin: '0 0 14px 0', color: '#002f6c', fontSize: '0.95rem', borderBottom: '1px solid #f1f3f4', paddingBottom: '8px' }}>
+                      📅 2. Session Active & Contrôle des Portails
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Année / Session d'Examen en cours</label>
+                        <select
+                          value={parametresSysteme.sessionActive}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, sessionActive: e.target.value })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        >
+                          <option value="2025">Session 2025</option>
+                          <option value="2026">Session 2026</option>
+                          <option value="2027">Session 2027</option>
+                        </select>
+                      </div>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.85rem', marginTop: '6px' }}>
+                        <input
+                          type="checkbox"
+                          checked={parametresSysteme.portailDemandesOuvert}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, portailDemandesOuvert: e.target.checked })}
+                          style={{ width: '16px', height: '16px' }}
+                        />
+                        <span>Autoriser les nouvelles demandes de diplômes en ligne (Public)</span>
+                      </label>
+
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '0.85rem' }}>
+                        <input
+                          type="checkbox"
+                          checked={parametresSysteme.saisieTerrainOuverte}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, saisieTerrainOuverte: e.target.checked })}
+                          style={{ width: '16px', height: '16px' }}
+                        />
+                        <span>Autoriser la transmission des notes par les Chefs de Centre</span>
+                      </label>
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#ffffff', padding: '18px', borderRadius: '6px', border: '1px solid #e0e0e0' }}>
+                    <h4 style={{ margin: '0 0 14px 0', color: '#002f6c', fontSize: '0.95rem', borderBottom: '1px solid #f1f3f4', paddingBottom: '8px' }}>
+                      🎓 3. Règles de Délibération & Mentions (/20)
+                    </h4>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Seuil d'Admission</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={parametresSysteme.moyenneAdmission}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, moyenneAdmission: Number(e.target.value) })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Mention Assez Bien</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={parametresSysteme.seuilAssezBien}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, seuilAssezBien: Number(e.target.value) })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Mention Bien</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={parametresSysteme.seuilBien}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, seuilBien: Number(e.target.value) })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Mention Très Bien</label>
+                        <input
+                          type="number"
+                          step="0.5"
+                          value={parametresSysteme.seuilTresBien}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, seuilTresBien: Number(e.target.value) })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ backgroundColor: '#ffffff', padding: '18px', borderRadius: '6px', border: '1px solid #e0e0e0' }}>
+                    <h4 style={{ margin: '0 0 14px 0', color: '#002f6c', fontSize: '0.95rem', borderBottom: '1px solid #f1f3f4', paddingBottom: '8px' }}>
+                      🔔 4. Notifications & Journal d'Audit
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>E-mail Expéditeur Officiel (SMTP)</label>
+                        <input
+                          type="email"
+                          value={parametresSysteme.emailNotification}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, emailNotification: e.target.value })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', marginBottom: '4px' }}>Modèle SMS / WhatsApp de Validation</label>
+                        <textarea
+                          rows="2"
+                          value={parametresSysteme.modeleMessageWhatsApp}
+                          onChange={(e) => setParametresSysteme({ ...parametresSysteme, modeleMessageWhatsApp: e.target.value })}
+                          style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box', fontFamily: 'inherit', fontSize: '0.82rem' }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ gridColumn: '1 / -1', backgroundColor: '#ffffff', padding: '20px', borderRadius: '6px', border: '1px solid #e0e0e0', borderTop: '3px solid #c5221f' }}>
+                    <h4 style={{ margin: '0 0 16px 0', color: '#c5221f', fontSize: '0.95rem', borderBottom: '1px solid #f1f3f4', paddingBottom: '8px' }}>
+                      🛡️ 5. Sécurité & Gestion des Accès Direction
+                    </h4>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                      
+                      <div style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '6px', border: '1px solid #e8eaed' }}>
+                        <h5 style={{ margin: '0 0 12px 0', color: '#002f6c', fontSize: '0.88rem' }}>
+                          🔑 Modification du Mot de Passe Administrateur
+                        </h5>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', marginBottom: '3px' }}>E-mail du compte connecté *</label>
+                            <input
+                              type="email"
+                              placeholder="admin@dretfp.mg"
+                              value={pwdForm.email}
+                              onChange={(e) => setPwdForm({ ...pwdForm, email: e.target.value })}
+                              style={{ width: '100%', padding: '7px 10px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', marginBottom: '3px' }}>Ancien mot de passe *</label>
+                            <input
+                              type="password"
+                              placeholder="••••••••"
+                              value={pwdForm.ancienPassword}
+                              onChange={(e) => setPwdForm({ ...pwdForm, ancienPassword: e.target.value })}
+                              style={{ width: '100%', padding: '7px 10px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                            />
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', marginBottom: '3px' }}>Nouveau mot de passe *</label>
+                              <input
+                                type="password"
+                                placeholder="Min. 6 caractères"
+                                value={pwdForm.nouveauPassword}
+                                onChange={(e) => setPwdForm({ ...pwdForm, nouveauPassword: e.target.value })}
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                            <div>
+                              <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', marginBottom: '3px' }}>Confirmer *</label>
+                              <input
+                                type="password"
+                                placeholder="••••••••"
+                                value={pwdForm.confirmerPassword}
+                                onChange={(e) => setPwdForm({ ...pwdForm, confirmerPassword: e.target.value })}
+                                style={{ width: '100%', padding: '7px 10px', borderRadius: '4px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                              />
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleUpdateAdminPassword}
+                            disabled={pwdLoading}
+                            style={{
+                              marginTop: '6px', backgroundColor: '#c5221f', color: '#ffffff', border: 'none',
+                              borderRadius: '4px', padding: '8px 14px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.82rem'
+                            }}
+                          >
+                            {pwdLoading ? 'Mise à jour en cours...' : '🔒 Mettre à jour mon mot de passe'}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', justifyContent: 'space-between' }}>
+                        <div style={{ backgroundColor: '#fff9e6', padding: '15px', borderRadius: '6px', border: '1px solid #fde293' }}>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#b06000', marginBottom: '6px' }}>
+                            🗝️ Clé Secrète d'Enregistrement Direction
+                          </label>
+                          <p style={{ margin: '0 0 8px 0', fontSize: '0.76rem', color: '#666' }}>
+                            Requise pour initialiser un nouveau compte administrateur ou réinitialiser un accès.
+                          </p>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <input
+                              type={showSecretKey ? 'text' : 'password'}
+                              value={parametresSysteme.cleSecreteDirection}
+                              onChange={(e) => setParametresSysteme({ ...parametresSysteme, cleSecreteDirection: e.target.value })}
+                              style={{ flex: 1, padding: '7px 10px', borderRadius: '4px', border: '1px solid #b06000', backgroundColor: '#ffffff', fontWeight: 'bold', boxSizing: 'border-box' }}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowSecretKey(!showSecretKey)}
+                              style={{ padding: '0 12px', backgroundColor: '#ffffff', border: '1px solid #b06000', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', color: '#b06000' }}
+                            >
+                              {showSecretKey ? '🙈 Masquer' : '👁️ Afficher'}
+                            </button>
+                          </div>
+                        </div>
+
+                        <div style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '6px', border: '1px solid #e8eaed' }}>
+                          <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '700', color: '#002f6c', marginBottom: '6px' }}>
+                            ⏳ Durée de conservation de l'Historique (Audit)
+                          </label>
+                          <p style={{ margin: '0 0 8px 0', fontSize: '0.76rem', color: '#666' }}>
+                            Délai avant la suppression automatique des anciens journaux d'événements.
+                          </p>
+                          <select
+                            value={parametresSysteme.retentionHistoriqueJours}
+                            onChange={(e) => setParametresSysteme({ ...parametresSysteme, retentionHistoriqueJours: Number(e.target.value) })}
+                            style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #ccc', backgroundColor: '#ffffff', fontWeight: '600' }}
+                          >
+                            <option value={30}>30 jours (1 mois)</option>
+                            <option value={60}>60 jours (2 mois)</option>
+                            <option value={90}>90 jours (3 mois — Recommandé)</option>
+                            <option value={180}>180 jours (6 mois)</option>
+                            <option value={365}>365 jours (1 an)</option>
+                          </select>
+                        </div>
+
+                      </div>
+                    </div>
+                  </div>
+
+
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '24px', paddingTop: '16px', borderTop: '1px solid #dadce0' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const backupData = JSON.stringify({
+                        date: new Date().toISOString(),
+                        parametres: parametresSysteme,
+                        apprenants: typeof apprenants !== 'undefined' ? apprenants : [],
+                        demandes: typeof demandes !== 'undefined' ? demandes : []
+                      }, null, 2);
+                      const blob = new Blob([backupData], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `Sauvegarde_DRETFP_${new Date().toISOString().slice(0, 10)}.json`;
+                      a.click();
+                    }}
+                    style={{
+                      backgroundColor: '#f1f3f4', color: '#333', border: '1px solid #ccc',
+                      borderRadius: '4px', padding: '10px 16px', fontWeight: '600', cursor: 'pointer'
+                    }}
+                  >
+                    💾 Télécharger une Sauvegarde de Sécurité
+                  </button>
+
+                  <button
+                    type="submit"
+                    style={{
+                      backgroundColor: '#002f6c', color: '#ffffff', border: 'none',
+                      borderRadius: '4px', padding: '10px 24px', fontWeight: 'bold', cursor: 'pointer', fontSize: '0.92rem'
+                    }}
+                  >
+                    ✅ Enregistrer les Paramètres
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
 
 
         </div> 
@@ -4839,18 +5858,22 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
               };
 
               try {
-                // Utilisation propre de votre instance Axios centralisée
                 const response = await API.post('/chefs-centre/enregistrer', payload);
                 
                 if (response.data.status === 'success' || response.data) {
                   alert("🎉 Chef de centre enregistré avec succès dans MySQL (WampServer) !");
                   form.reset();
-                  setShowAddChefModal(false); // Fermeture propre de la modal
+                  setShowAddChefModal(false); 
                   
-                  // Rafraîchissement réactif de la grille graphique
                   if (typeof chargerChefsCentre === 'function') {
                     await chargerChefsCentre();
                   }
+                  setPreselectedEtabId('');
+                  setSelectedChefView(null);
+                  setActiveMenu('resultat_etablissement');  
+
+
+                  
                 }
               } catch (err) {
                 console.error("❌ Échec d'écriture du Chef de centre :", err);
@@ -4885,7 +5908,12 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
 
               <div>
                 <label style={{ display: 'block', marginBottom: '5px', fontSize: '0.85rem', fontWeight: '600', color: '#555' }}>Établissement d'Affectation :</label>
-                <select name="etablissement" required style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '5px', border: '1px solid #ccc', backgroundColor: '#fff' }}>
+                <select 
+                  name="etablissement" 
+                  defaultValue={preselectedEtabId} 
+                  required 
+                  style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '5px', border: '1px solid #ccc', backgroundColor: '#fff' }}
+                >
                   <option value="">-- Sélectionner l'établissement --</option>
                   {(listeEtablissements || etablissementsOptions || [
                     { id_centre: 1, nom_etablissement: "LTP AMBOSITRA" },
