@@ -41,41 +41,54 @@ const EspaceChefCentre = () => {
       chargerMesDocuments();
     }, [idEtabConnecte]);
 
-    const handleEnvoyerDocumentOfficiel = async (e) => {
-      e.preventDefault();
-      if (!fichierDocument) {
-        alert("⚠️ Veuillez sélectionner un fichier (Excel, Word ou PDF) avant d'envoyer.");
-        return;
-      }
-      if (!idEtabConnecte) {
-        alert("❌ Identifiant d'établissement introuvable. Veuillez vous reconnecter.");
-        return;
+  const handleEnvoyerDocumentOfficiel = async (e) => {
+    e.preventDefault();
+    if (!fichierDocument) {
+      alert("⚠️ Veuillez sélectionner un fichier (Excel, Word ou PDF) avant d'envoyer.");
+      return;
+    }
+
+    const idEtabNum = parseInt(idEtabConnecte, 10);
+    if (isNaN(idEtabNum) || idEtabNum <= 0) {
+      alert("❌ Identifiant d'établissement introuvable ou invalide. Veuillez vous déconnecter et vous reconnecter.");
+      return;
+    }
+
+    setEnvoiDocLoading(true);
+    const formData = new FormData();
+    formData.append('id_etablissement', idEtabNum.toString());
+    formData.append('chef_username', usernameChefConnecte || 'chef_terrain');
+    formData.append('fichier', fichierDocument);
+
+    try {
+      await API.post('/chefs-centre/envoyer-document', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+
+      alert(`✅ Le document "${fichierDocument.name}" a été transmis avec succès à la DRETFP !`);
+      setFichierDocument(null);
+      e.target.reset();
+      chargerMesDocuments();
+    } catch (err) {
+      console.error("Erreur détaillée lors de l'envoi :", err.response?.data || err);
+      
+      const detailErreur = err.response?.data?.detail;
+      let messageAffiche = "❌ Échec de l'envoi du document.";
+
+      if (typeof detailErreur === 'string') {
+        messageAffiche = detailErreur;
+      } else if (Array.isArray(detailErreur)) {
+        messageAffiche = detailErreur.map((d) => `${d.loc?.join('.')} : ${d.msg}`).join('\n');
       }
 
-      setEnvoiDocLoading(true);
-      const formData = new FormData();
-      formData.append('id_etablissement', Number(idEtabConnecte));
-      formData.append('chef_username', usernameChefConnecte);
-      formData.append('fichier', fichierDocument);
+      alert(messageAffiche);
+    } finally {
+      setEnvoiDocLoading(false);
+    }
+  };
 
-      try {
-        await API.post('/chefs-centre/envoyer-document', formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data'
-          }
-        });
-
-        alert(`✅ Le document "${fichierDocument.name}" a été transmis avec succès à la DRETFP !`);
-        setFichierDocument(null);
-        e.target.reset(); 
-        chargerMesDocuments(); 
-      } catch (err) {
-        console.error("Erreur lors de l'envoi du document :", err);
-        alert(err.response?.data?.detail || "❌ Échec de l'envoi du document. Vérifiez votre connexion.");
-      } finally {
-        setEnvoiDocLoading(false);
-      }
-    };
 
   useEffect(() => {
     if (!token) {
@@ -213,14 +226,14 @@ const EspaceChefCentre = () => {
               textAlign: 'center',
               backgroundColor: '#f8faff'
             }}>
-              <div style={{ fontSize: '1.8rem', marginBottom: '6px' }}>📄📊📕</div>
+              <div style={{ fontSize: '1.8rem', marginBottom: '6px' }}>📄📕</div>
               <label style={{ display: 'block', fontSize: '0.88rem', fontWeight: '600', color: '#002f6c', marginBottom: '8px', cursor: 'pointer' }}>
                 Choisir un fichier depuis votre appareil :
               </label>
               <input
                 type="file"
                 accept=".xlsx,.xls,.doc,.docx,.pdf"
-                onChange={(e) => setFichierDocument(e.target.files || null)}
+                onChange={(e) => setFichierDocument(e.target.files ? e.target.files[0] : null)}
                 style={{
                   fontSize: '0.85rem',
                   color: '#333',
