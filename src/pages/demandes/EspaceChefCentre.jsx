@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import API from '../../services/api';
 import * as XLSX from 'xlsx';
+import logoDretfp from '/src/assets/images/logo.jpeg';
 
 const EspaceChefCentre = () => {
   const navigate = useNavigate();
@@ -179,10 +180,34 @@ const EspaceChefCentre = () => {
     );
   }
 
+  const handleDeconnexionChef = async () => {
+  const usernameActuel = localStorage.getItem('user_username') || localStorage.getItem('username');
+  
+  if (!window.confirm("Voulez-vous vraiment vous déconnecter du portail Chef de Centre ?")) {
+    return;
+  }
+
+  try {
+    if (usernameActuel) {
+      await API.post('/chefs-centre/deconnexion', { username: usernameActuel });
+    }
+  } catch (err) {
+    console.error("Erreur lors de la notification de déconnexion :", err);
+  } finally {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user_username');
+    localStorage.removeItem('username');
+    localStorage.removeItem('centre_affectation');
+    window.location.href = '/chef.html'; 
+  }
+};
+
+
   return (
     <div style={{ padding: '30px', maxWidth: '900px', margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
       <div style={{ backgroundColor: '#002f6c', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '25px' }}>
-        <h2>🏛️ Portail de Saisie Décentralisé — Chef de Centre</h2>
+        <img src={logoDretfp} alt="Logo" style={{ width: '35px', height: '34px', borderRadius: '4px' }} />
+        <span style={{ fontWeight: 'bold', color: '#3c4043', fontSize: '1.15rem', whiteSpace: 'nowrap' }}>CHEF DE CENTRE CAS DE LA DRETFP AMORON'I MANIA</span>
         <p>Session d'Examen — Transmission sécurisée des fiches candidats vers la DRETFP centrale</p>
       </div>
 
@@ -557,7 +582,49 @@ const EspaceChefCentre = () => {
           </div>
         </div>
       )}
+
+{/* BOUTON DÉCONNEXION CENTRÉ SOUS LES DEUX CARTES (CADRE ROUGE) */}
+<div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
+  <button
+    type="button"
+    onClick={handleDeconnexionChef}
+    style={{
+      backgroundColor: '#fce8e6',
+      color: '#c5221f',
+      border: '1.5px solid #fad2cf',
+      borderRadius: '8px',
+      padding: '10px 28px',
+      fontSize: '0.92rem',
+      fontWeight: 'bold',
+      cursor: 'pointer',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '8px',
+      boxShadow: '0 2px 5px rgba(197, 34, 31, 0.1)',
+      transition: 'all 0.2s ease-in-out'
+    }}
+    onMouseEnter={(e) => {
+      e.currentTarget.style.backgroundColor = '#c5221f';
+      e.currentTarget.style.color = '#ffffff';
+    }}
+    onMouseLeave={(e) => {
+      e.currentTarget.style.backgroundColor = '#fce8e6';
+      e.currentTarget.style.color = '#c5221f';
+    }}
+  >
+    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.3" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+      <polyline points="16 17 21 12 16 7"></polyline>
+      <line x1="21" y1="12" x2="9" y2="12"></line>
+    </svg>
+    <span>Déconnexion</span>
+  </button>
+</div>
+
+      
     </div>
+
+    
   );
 };
 

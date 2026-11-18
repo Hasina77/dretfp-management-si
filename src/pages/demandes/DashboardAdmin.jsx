@@ -105,7 +105,37 @@ const DashboardAdmin = () => {
     return () => clearInterval(intervalle); 
   }, []);
 
-  
+  const [docsConsultesParEtab, setDocsConsultesParEtab] = useState(() => {
+    const saved = localStorage.getItem('dretfp_docs_consultes');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const marquerDocumentsCommeLus = (chef) => {
+    const idEtab = (chef.id_etablissement ?? chef.etablissement_id)?.toString();
+    const totalDocs = chef.nb_documents_envoyes ?? chef.nb_apprenants_envoyes ?? 0;
+    if (!idEtab) return;
+
+    setDocsConsultesParEtab((prev) => {
+      const misAJour = { ...prev, [idEtab]: totalDocs };
+      localStorage.setItem('dretfp_docs_consultes', JSON.stringify(misAJour));
+      return misAJour;
+    });
+  };
+
+  const [docsTelecharges, setDocsTelecharges] = useState(() => {
+    const saved = localStorage.getItem('dretfp_docs_telecharges');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  const marquerDocTelecharge = (idDoc) => {
+    if (!idDoc) return;
+    setDocsTelecharges((prev) => {
+      const misAJour = { ...prev, [idDoc.toString()]: true };
+      localStorage.setItem('dretfp_docs_telecharges', JSON.stringify(misAJour));
+      return misAJour;
+    });
+  };
+
 
   const [listeExamensDashboard, setListeExamensDashboard] = useState([]);
 
@@ -268,6 +298,14 @@ const DashboardAdmin = () => {
     }
   };
 
+  useEffect(() => {
+  if (selectedChefView && selectedChefView.tab === 'documents') {
+    const idEtab = selectedChefView.chef.id_etablissement ?? selectedChefView.chef.etablissement_id;
+    if (idEtab) {
+      chargerDocumentsDuChef(idEtab);
+    }
+  }
+}, [selectedChefView]);
 
  
 const [parametresSysteme, setParametresSysteme] = useState(() => {
@@ -944,7 +982,6 @@ const handleSaveParametres = (e) => {
       }
     }
   };
-
 
 
   const [showAddEtablissement, setShowAddEtablissement] = useState(false);
@@ -1700,6 +1737,11 @@ const chargerDemandes = async () => {
       username: chef.username || '',
       statut: chef.statut || 'ACTIF'
     });
+
+    if (tab === 'documents') {
+    marquerDocumentsCommeLus(chef);
+    chargerDocumentsDuChef(chef.id_etablissement);
+    }
 
     setSelectedChefView({ chef, tab });
   };
@@ -4706,77 +4748,93 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                             </div>
                           )}
 
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (chef.a_envoye_donnees) {
-                                ouvrirInterfaceChef(chef, 'documents');
-                              } else {
-                                alert(`⏳ Aucune liste ni rapport n'a encore été transmis par ${chef.nom_chefcentre} pour cet établissement.`);
-                              }
-                            }}
-                            title={
-                              chef.a_envoye_donnees
-                                ? `🔔 Transmission reçue : ${chef.nb_apprenants_envoyes} apprenant(s) envoyé(s). Cliquez pour consulter.`
-                                : "🔕 En attente de transmission des listes / rapports"
-                            }
-                            style={{
-                              position: 'absolute',
-                              top: '12px',
-                              right: '12px',
-                              backgroundColor: chef.a_envoye_donnees ? '#ffffff' : 'transparent',
-                              border: chef.a_envoye_donnees ? '1px solid #d2e3fc' : 'none',
-                              borderRadius: '50%',
-                              width: '32px',
-                              height: '32px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              cursor: 'pointer',
-                              boxShadow: chef.a_envoye_donnees ? '0 2px 5px rgba(26, 115, 232, 0.2)' : 'none',
-                              transition: 'transform 0.2s'
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
-                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
-                          >
-                            <svg
-                              viewBox="0 0 24 24"
-                              width="17"
-                              height="17"
-                              stroke={chef.a_envoye_donnees ? '#1a73e8' : '#80868b'}
-                              strokeWidth="2.2"
-                              fill={chef.a_envoye_donnees ? '#e8f0fe' : 'none'}
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                            >
-                              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
-                              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
-                            </svg>
+                          {(() => {
+                            const idEtabStr = (chef.id_etablissement ?? chef.etablissement_id)?.toString() || '';
+                            const totalDocs = chef.nb_documents_envoyes ?? chef.nb_apprenants_envoyes ?? 0;
+                            const dejaVus = docsConsultesParEtab[idEtabStr] || 0;
+                            const nonLus = Math.max(totalDocs - dejaVus, 0);
+                            const aNouvelleNotif = nonLus > 0;
 
-                            {chef.a_envoye_donnees && (
-                              <span
+                            return (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (totalDocs > 0) {
+                                    marquerDocumentsCommeLus(chef);
+                                    ouvrirInterfaceChef(chef, 'documents');
+                                  } else {
+                                    alert(`⏳ Aucun document n'a encore été transmis par ${chef.nom_chefcentre} pour cet établissement.`);
+                                  }
+                                }}
+                                title={
+                                  aNouvelleNotif
+                                    ? `🔔 ${nonLus} nouveau(x) document(s) reçu(s). Cliquez pour consulter.`
+                                    : totalDocs > 0
+                                    ? `📁 ${totalDocs} document(s) déjà consulté(s). Cliquez pour rouvrir.`
+                                    : "🔕 Aucun document transmis"
+                                }
                                 style={{
                                   position: 'absolute',
-                                  top: '-4px',
-                                  right: '-4px',
-                                  backgroundColor: '#ea4335',
-                                  color: '#ffffff',
-                                  fontSize: '0.65rem',
-                                  fontWeight: 'bold',
-                                  minWidth: '16px',
-                                  height: '16px',
-                                  borderRadius: '10px',
+                                  top: '12px',
+                                  right: '12px',
+                                  backgroundColor: aNouvelleNotif ? '#ffffff' : 'transparent',
+                                  border: aNouvelleNotif ? '1px solid #d2e3fc' : 'none',
+                                  borderRadius: '50%',
+                                  width: '32px',
+                                  height: '32px',
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'center',
-                                  padding: '0 4px',
-                                  border: '1.5px solid #ffffff'
+                                  cursor: 'pointer',
+                                  boxShadow: aNouvelleNotif ? '0 2px 5px rgba(26, 115, 232, 0.2)' : 'none',
+                                  transition: 'all 0.2s'
                                 }}
+                                onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.08)'; }}
+                                onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)'; }}
                               >
-                                {chef.nb_apprenants_envoyes}
-                              </span>
-                            )}
-                          </button>
+                                <svg
+                                  viewBox="0 0 24 24"
+                                  width="17"
+                                  height="17"
+                                  stroke={aNouvelleNotif ? '#1a73e8' : '#80868b'}
+                                  strokeWidth="2.2"
+                                  fill={aNouvelleNotif ? '#e8f0fe' : 'none'}
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                >
+                                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+                                  <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+                                </svg>
+
+                                {aNouvelleNotif && (
+                                  <span
+                                    style={{
+                                      position: 'absolute',
+                                      top: '-4px',
+                                      right: '-4px',
+                                      backgroundColor: '#ea4335',
+                                      color: '#ffffff',
+                                      fontSize: '0.65rem',
+                                      fontWeight: 'bold',
+                                      minWidth: '16px',
+                                      height: '16px',
+                                      borderRadius: '10px',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      padding: '0 4px',
+                                      border: '1.5px solid #ffffff'
+                                    }}
+                                  >
+                                    {nonLus}
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })()}
+
+
 
 
                           <div style={{ position: 'relative', width: '54px', height: '54px' }}>
@@ -5270,6 +5328,7 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                                 <th style={{ width: '110px' }}>Format</th>
                                 <th>Nom du fichier</th>
                                 <th style={{ width: '180px' }}>Date de transmission</th>
+                                <th style={{ width: '160px', textAlign: 'center' }}>Statut</th>
                                 <th style={{ width: '160px', textAlign: 'center' }}>Action</th>
                               </tr>
                             </thead>
@@ -5287,6 +5346,7 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                                   const badgeBg = estExcel ? '#e6f4ea' : (estPdf ? '#fce8e6' : '#e8f0fe');
                                   const badgeColor = estExcel ? '#137333' : (estPdf ? '#c5221f' : '#1a73e8');
                                   const iconeDoc = estExcel ? '📊' : (estPdf ? '📕' : '📘');
+                                  const estTelecharge = Boolean(docsTelecharges[doc.id_document?.toString()]);
 
                                   return (
                                     <tr key={doc.id_document}>
@@ -5313,25 +5373,137 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                                         })}
                                       </td>
                                       <td style={{ textAlign: 'center' }}>
-                                        <a
-                                          href={`${baseUrlServeur}${doc.chemin_stockage}`}
-                                          target="_blank"
-                                          rel="noopener noreferrer"
-                                          download={doc.nom_fichier}
-                                          style={{
-                                            display: 'inline-block',
-                                            padding: '6px 12px',
-                                            backgroundColor: '#002f6c',
-                                            color: '#ffffff',
-                                            borderRadius: '4px',
-                                            textDecoration: 'none',
-                                            fontSize: '0.8rem',
-                                            fontWeight: 'bold'
-                                          }}
-                                        >
-                                          📥 Télécharger
-                                        </a>
+                                        {estTelecharge ? (
+                                          <span style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 10px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: '600',
+                                            backgroundColor: '#e6f4ea',
+                                            color: '#137333',
+                                            border: '1px solid #ceead6'
+                                          }}>
+                                            ✅ Déjà téléchargé
+                                          </span>
+                                        ) : (
+                                          <span style={{
+                                            display: 'inline-flex',
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            padding: '4px 10px',
+                                            borderRadius: '12px',
+                                            fontSize: '0.75rem',
+                                            fontWeight: '600',
+                                            backgroundColor: '#f1f3f4',
+                                            color: '#5f6368',
+                                            border: '1px solid #dadce0'
+                                          }}>
+                                            ⏳ Non téléchargé
+                                          </span>
+                                        )}
                                       </td>
+                                      <td style={{ textAlign: 'center' }}>
+                                        <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                                          
+                                          <button
+                                            type="button"
+                                            title={`Télécharger ${doc.nom_fichier}`}
+                                            onClick={async () => {
+                                              try {
+                                                const response = await API.get(`/chefs-centre/telecharger-document/${doc.id_document}`, {
+                                                  responseType: 'blob'
+                                                });
+
+                                                const blobUrl = window.URL.createObjectURL(new Blob([response.data]));
+                                                const lienTelechargement = document.createElement('a');
+                                                lienTelechargement.href = blobUrl;
+                                                lienTelechargement.setAttribute('download', doc.nom_fichier);
+                                                document.body.appendChild(lienTelechargement);
+                                                lienTelechargement.click();
+                                                
+                                                lienTelechargement.remove();
+                                                window.URL.revokeObjectURL(blobUrl);
+
+                                                marquerDocTelecharge(doc.id_document);
+                                              } catch (err) {
+                                                console.error("Erreur de téléchargement :", err);
+                                                alert("❌ Impossible de télécharger ce fichier.");
+                                              }
+                                            }}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              width: '34px',
+                                              height: '34px',
+                                              backgroundColor: '#002f6c',
+                                              color: '#ffffff',
+                                              border: 'none',
+                                              borderRadius: '6px',
+                                              cursor: 'pointer',
+                                              transition: 'background-color 0.2s'
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#1a73e8'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#002f6c'; }}
+                                          >
+                                            <svg viewBox="0 0 24 24" width="17" height="17" stroke="currentColor" strokeWidth="2.3" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                                              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                              <polyline points="7 10 12 15 17 10"></polyline>
+                                              <line x1="12" y1="15" x2="12" y2="3"></line>
+                                            </svg>
+                                          </button>
+
+                                          <button
+                                            type="button"
+                                            title={`Supprimer définitivement ${doc.nom_fichier}`}
+                                            onClick={async () => {
+                                              if (!window.confirm(`🗑️ Voulez-vous vraiment supprimer définitivement le document "${doc.nom_fichier}" ?`)) {
+                                                return;
+                                              }
+
+                                              try {
+                                                await API.delete(`/chefs-centre/supprimer-document/${doc.id_document}`);
+                                                
+                                                setDocumentsChef((prev) => prev.filter((item) => item.id_document !== doc.id_document));
+                                                
+                                                if (typeof chargerChefsCentre === 'function') {
+                                                  chargerChefsCentre();
+                                                }
+                                              } catch (err) {
+                                                console.error("Erreur lors de la suppression :", err);
+                                                alert(err.response?.data?.detail || "❌ Erreur lors de la suppression du document.");
+                                              }
+                                            }}
+                                            style={{
+                                              display: 'inline-flex',
+                                              alignItems: 'center',
+                                              justifyContent: 'center',
+                                              width: '34px',
+                                              height: '34px',
+                                              backgroundColor: '#fce8e6',
+                                              color: '#c5221f',
+                                              border: '1px solid #fad2cf',
+                                              borderRadius: '6px',
+                                              cursor: 'pointer',
+                                              transition: 'background-color 0.2s'
+                                            }}
+                                            onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fad2cf'; }}
+                                            onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fce8e6'; }}
+                                          >
+                                            <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" strokeLinejoin="round">
+                                              <polyline points="3 6 5 6 21 6"></polyline>
+                                              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                              <line x1="10" y1="11" x2="10" y2="17"></line>
+                                              <line x1="14" y1="11" x2="14" y2="17"></line>
+                                            </svg>
+                                          </button>
+
+                                        </div>
+                                      </td>
+
                                     </tr>
                                   );
                                 })
