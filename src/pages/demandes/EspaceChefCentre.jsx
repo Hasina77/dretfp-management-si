@@ -205,11 +205,49 @@ const EspaceChefCentre = () => {
 
   return (
     <div style={{ padding: '30px', maxWidth: '900px', margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
-      <div style={{ backgroundColor: '#002f6c', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '25px' }}>
+      <div style={{ backgroundColor: '#99da99', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '25px' }}>
         <img src={logoDretfp} alt="Logo" style={{ width: '35px', height: '34px', borderRadius: '4px' }} />
-        <span style={{ fontWeight: 'bold', color: '#3c4043', fontSize: '1.15rem', whiteSpace: 'nowrap' }}>CHEF DE CENTRE CAS DE LA DRETFP AMORON'I MANIA</span>
+        <span style={{ fontWeight: 'bold', color: 'white', fontSize: '1.15rem', whiteSpace: 'nowrap' }}>CHEF DE CENTRE CAS DE LA DRETFP AMORON'I MANIA</span>
         <p>Session d'Examen — Transmission sécurisée des fiches candidats vers la DRETFP centrale</p>
       </div>
+
+      <div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
+        <button
+          type="button"
+          onClick={handleDeconnexionChef}
+          style={{
+            backgroundColor: '#fce8e6',
+            color: '#c5221f',
+            border: '1.5px solid #fad2cf',
+            borderRadius: '8px',
+            padding: '10px 28px',
+            fontSize: '0.92rem',
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            boxShadow: '0 2px 5px rgba(197, 34, 31, 0.1)',
+            transition: 'all 0.2s ease-in-out'
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = '#c5221f';
+            e.currentTarget.style.color = '#ffffff';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = '#fce8e6';
+            e.currentTarget.style.color = '#c5221f';
+          }}
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.3" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+            <polyline points="16 17 21 12 16 7"></polyline>
+            <line x1="21" y1="12" x2="9" y2="12"></line>
+          </svg>
+          <span>Déconnexion</span>
+        </button>
+      </div>
+
 
       {modeSaisie === '' && (
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', marginTop: '40px' }}>
@@ -582,44 +620,6 @@ const EspaceChefCentre = () => {
           </div>
         </div>
       )}
-
-{/* BOUTON DÉCONNEXION CENTRÉ SOUS LES DEUX CARTES (CADRE ROUGE) */}
-<div style={{ display: 'flex', justifyContent: 'center', marginTop: '24px' }}>
-  <button
-    type="button"
-    onClick={handleDeconnexionChef}
-    style={{
-      backgroundColor: '#fce8e6',
-      color: '#c5221f',
-      border: '1.5px solid #fad2cf',
-      borderRadius: '8px',
-      padding: '10px 28px',
-      fontSize: '0.92rem',
-      fontWeight: 'bold',
-      cursor: 'pointer',
-      display: 'inline-flex',
-      alignItems: 'center',
-      gap: '8px',
-      boxShadow: '0 2px 5px rgba(197, 34, 31, 0.1)',
-      transition: 'all 0.2s ease-in-out'
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.backgroundColor = '#c5221f';
-      e.currentTarget.style.color = '#ffffff';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.backgroundColor = '#fce8e6';
-      e.currentTarget.style.color = '#c5221f';
-    }}
-  >
-    <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.3" fill="none" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-      <polyline points="16 17 21 12 16 7"></polyline>
-      <line x1="21" y1="12" x2="9" y2="12"></line>
-    </svg>
-    <span>Déconnexion</span>
-  </button>
-</div>
 
       
     </div>
