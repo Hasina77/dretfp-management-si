@@ -48,6 +48,9 @@ function App() {
         <Route path="/fiche-pv-examen" element={<SaisieCentreTerrain />} />
         <Route path="/saisie-notes" element={<SaisieNotes />} />
 
+        <Route path="/" element={<Navigate to="/chef" replace />} />
+        <Route path="/chef" element={<EspaceChefCentre />} />
+
         <Route path="/admin-registration-secret-2026" element={<RegisterAdmin />} />
 
         <Route 
