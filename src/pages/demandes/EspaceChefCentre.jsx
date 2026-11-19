@@ -181,33 +181,33 @@ const EspaceChefCentre = () => {
   }
 
   const handleDeconnexionChef = async () => {
-  const usernameActuel = localStorage.getItem('user_username') || localStorage.getItem('username');
-  
-  if (!window.confirm("Voulez-vous vraiment vous déconnecter du portail Chef de Centre ?")) {
-    return;
-  }
-
-  try {
-    if (usernameActuel) {
-      await API.post('/chefs-centre/deconnexion', { username: usernameActuel });
+    if (!window.confirm("Voulez-vous vraiment vous déconnecter du portail Chef de Centre ?")) {
+      return;
     }
-  } catch (err) {
-    console.error("Erreur lors de la notification de déconnexion :", err);
-  } finally {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user_username');
-    localStorage.removeItem('username');
-    localStorage.removeItem('centre_affectation');
-    window.location.href = '/chef.html'; 
-  }
-};
+
+    const usernameActuel = localStorage.getItem('user_username') || localStorage.getItem('username') || localStorage.getItem('user_email') || '';
+    const idEtabActuel = localStorage.getItem('centre_affectation') || localStorage.getItem('id_etablissement') || '';
+
+    try {
+      await API.post('/chefs-centre/deconnexion', {
+        username: usernameActuel,
+        id_etablissement: idEtabActuel ? Number(idEtabActuel) : null
+      });
+    } catch (err) {
+      console.error("Erreur lors de la notification de déconnexion :", err);
+    } finally {
+      localStorage.clear();
+      window.location.href = '/chef.html'; 
+    }
+  };
+
 
 
   return (
     <div style={{ padding: '30px', maxWidth: '900px', margin: '0 auto', fontFamily: "'Poppins', sans-serif" }}>
       <div style={{ backgroundColor: '#99da99', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '25px' }}>
         <img src={logoDretfp} alt="Logo" style={{ width: '35px', height: '34px', borderRadius: '4px' }} />
-        <span style={{ fontWeight: 'bold', color: 'white', fontSize: '1.15rem', whiteSpace: 'nowrap' }}>CHEF DE CENTRE CAS DE LA DRETFP AMORON'I MANIA</span>
+        <span style={{ fontWeight: 'bold', color: 'white', fontSize: '1.15rem', whiteSpace: 'nowrap' }}>__CHEF DE CENTRE CAS DE LA DRETFP AMORON'I MANIA__</span>
         <p>Session d'Examen — Transmission sécurisée des fiches candidats vers la DRETFP centrale</p>
       </div>
 

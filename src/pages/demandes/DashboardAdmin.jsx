@@ -137,6 +137,171 @@ const DashboardAdmin = () => {
   };
 
 
+  const [editingMatiereId, setEditingMatiereId] = useState(null);
+
+  const handleSaveMatiere = async (e) => {
+    e.preventDefault();
+    if (!selectedExamMatieres || !nouvelleMatiere.nom_matiere.trim()) return;
+    const idExam = selectedExamMatieres.id_examen ?? selectedExamMatieres.id;
+
+    try {
+      if (editingMatiereId !== null && editingMatiereId !== undefined) {
+        const res = await API.put(`/examens/matieres/${editingMatiereId}`, {
+          nom_matiere: nouvelleMatiere.nom_matiere.trim(),
+          coefficient: Number(nouvelleMatiere.coefficient),
+          type_epreuve: nouvelleMatiere.type_epreuve
+        });
+        setListeMatieresExam((prev) =>
+          prev.map((m) => ((m.id_matiere ?? m.id) === editingMatiereId ? res.data : m))
+        );
+        setEditingMatiereId(null);
+      } else {
+        const res = await API.post('/examens/matieres/ajouter', {
+          id_examen: Number(idExam),
+          nom_matiere: nouvelleMatiere.nom_matiere.trim(),
+          coefficient: Number(nouvelleMatiere.coefficient),
+          type_epreuve: nouvelleMatiere.type_epreuve
+        });
+        setListeMatieresExam((prev) => [...prev, res.data]);
+      }
+      setNouvelleMatiere({ nom_matiere: '', coefficient: 1, type_epreuve: 'Écrite' });
+    } catch (err) {
+      console.error("Erreur sauvegarde matière :", err);
+      alert("❌ Erreur lors de la mise à jour de la matière.");
+    }
+  };
+
+  const [examenImportNotesId, setExamenImportNotesId] = useState('');
+  const [fichierExcelNotes, setFichierExcelNotes] = useState(null);
+  const [importNotesLoading, setImportNotesLoading] = useState(false);
+
+  const [searchNoteApprenant, setSearchNoteApprenant] = useState('');
+  const [selectedApprenantNote, setSelectedApprenantNote] = useState(null);
+  const [bilanNoteActuel, setBilanNoteActuel] = useState(null);
+  const [loadingReleve, setLoadingReleve] = useState(false);
+
+  const consulterReleveApprenant = async (apprenant) => {
+    const idApp = apprenant.id_apprenant ?? apprenant.id;
+    setSelectedApprenantNote(apprenant);
+    setLoadingReleve(true);
+    try {
+      const res = await API.get(`/apprenants/${idApp}/releve-notes`);
+      setBilanNoteActuel(res.data);
+    } catch (err) {
+      console.error("Erreur chargement relevé :", err);
+      setBilanNoteActuel(null);
+    } finally {
+      setLoadingReleve(false);
+    }
+  };
+
+  const handleImporterNotesExcel = async (e) => {
+    e.preventDefault();
+    if (!examenImportNotesId) {
+      alert("⚠️ Veuillez sélectionner l'examen concerné (ex: CFA, CAP, BEP).");
+      return;
+    }
+    if (!fichierExcelNotes) {
+      alert("⚠️ Veuillez choisir un fichier Excel (.xlsx).");
+      return;
+    }
+
+    setImportNotesLoading(true);
+    const formData = new FormData();
+    formData.append('id_examen', examenImportNotesId);
+    formData.append('fichier', fichierExcelNotes);
+
+    try {
+      const res = await API.post('/apprenants/importer-notes-excel', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      let msg = `✅ Importation terminée !\n• ${res.data.nb_importes} candidat(s) mis à jour avec calcul automatique de la moyenne.`;
+      if (res.data.nb_ignores > 0) {
+        msg += `\n\n⚠️ ${res.data.nb_ignores} ligne(s) ignorée(s) (IM, Nom, Prénom ou Examen non reconnu) :\n` + res.data.details_ignores.slice(0, 5).join('\n');
+      }
+
+      alert(msg);
+
+      await chargerIdsApprenantsAvecNotes();
+      setFichierExcelNotes(null);
+      e.target.reset();
+
+      if (typeof chargerApprenants === 'function') chargerApprenants();
+      if (selectedApprenantNote) consulterReleveApprenant(selectedApprenantNote);
+    } catch (err) {
+      alert(err.response?.data?.detail || "❌ Erreur lors de l'importation du fichier Excel.");
+    } finally {
+      setImportNotesLoading(false);
+    }
+  };
+
+  const [idsApprenantsAvecNotes, setIdsApprenantsAvecNotes] = useState([]);
+
+  const chargerIdsApprenantsAvecNotes = async () => {
+    try {
+      const res = await API.get('/apprenants/avec-notes/ids');
+      setIdsApprenantsAvecNotes(res.data || []);
+    } catch (err) {
+      console.error("Erreur chargement IDs avec notes :", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeMenu === 'notes_apprenants') {
+      chargerIdsApprenantsAvecNotes();
+    }
+  }, [activeMenu]);
+
+
+
+
+  const [selectedExamMatieres, setSelectedExamMatieres] = useState(null); 
+  const [listeMatieresExam, setListeMatieresExam] = useState([]);
+  const [nouvelleMatiere, setNouvelleMatiere] = useState({ nom_matiere: '', coefficient: 1, type_epreuve: 'Écrite' });
+
+  const ouvrirListeMatieres = async (examenObj) => {
+    const idExam = examenObj.id_examen ?? examenObj.id;
+    setSelectedExamMatieres(examenObj);
+    try {
+      const res = await API.get(`/examens/${idExam}/matieres`);
+      setListeMatieresExam(res.data || []);
+    } catch (err) {
+      console.error("Erreur chargement matières :", err);
+      setListeMatieresExam([]);
+    }
+  };
+
+  const handleAjouterMatiere = async (e) => {
+    e.preventDefault();
+    if (!selectedExamMatieres || !nouvelleMatiere.nom_matiere.trim()) return;
+    const idExam = selectedExamMatieres.id_examen ?? selectedExamMatieres.id;
+
+    try {
+      const res = await API.post('/examens/matieres/ajouter', {
+        id_examen: Number(idExam),
+        nom_matiere: nouvelleMatiere.nom_matiere,
+        coefficient: Number(nouvelleMatiere.coefficient),
+        type_epreuve: nouvelleMatiere.type_epreuve
+      });
+      setListeMatieresExam((prev) => [...prev, res.data]);
+      setNouvelleMatiere({ nom_matiere: '', coefficient: 1, type_epreuve: 'Écrite' });
+    } catch (err) {
+      alert("❌ Erreur lors de l'ajout de la matière.");
+    }
+  };
+
+  const handleSupprimerMatiere = async (idMatiere) => {
+    if (!window.confirm("Supprimer cette matière ?")) return;
+    try {
+      await API.delete(`/examens/matieres/${idMatiere}`);
+      setListeMatieresExam((prev) => prev.filter((m) => m.id_matiere !== idMatiere));
+    } catch (err) {
+      alert("❌ Erreur lors de la suppression.");
+    }
+  };
+
+
   const [listeExamensDashboard, setListeExamensDashboard] = useState([]);
 
     useEffect(() => {
@@ -538,10 +703,11 @@ const handleSaveParametres = (e) => {
   if (activeMenu === 'resultat_etablissement' && typeof chargerChefsCentre === 'function') {
     const intervalle = setInterval(() => {
       chargerChefsCentre();
-    }, 15000); 
+    }, 5000); 
     return () => clearInterval(intervalle);
   }
 }, [activeMenu]);
+
 
   const supprimerApprenant = async (id) => {
     if (window.confirm("⚠️ Confirmez-vous la radiation définitive de cet apprenant du registre ?")) {
@@ -3035,8 +3201,25 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                               <br/>
                               <small style={{ color: '#5f6368', fontStyle: 'italic' }}>{nomMet}</small>
                             </td>
+                            <td>
+                              {app.mention ? (
+                                <span style={{
+                                  fontWeight: 'bold',
+                                  fontSize: '0.82rem',
+                                  color: app.mention === 'AJOURNÉ' ? '#c5221f' : '#002f6c',
+                                  backgroundColor: app.mention === 'AJOURNÉ' ? '#fce8e6' : '#e8f0fe',
+                                  padding: '3px 8px',
+                                  borderRadius: '4px'
+                                }}>
+                                  {app.mention}
+                                </span>
+                              ) : (
+                                <span style={{ color: '#9aa0a6', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                                  —
+                                </span>
+                              )}
+                            </td>
 
-                            <td><em style={{ color: 'var(--primary-color)', fontWeight: 600 }}>{item.mention || 'Passable'}</em></td>
                             <td>
                               {statutDemande === 'TERMINER' && <span className="status-badge valide">✅ Terminé </span>}
                               {statutDemande === 'EN_COURS' && <span className="status-badge en-cours" style={{ backgroundColor: '#e8f0fe', color: '#1a73e8' }}>⏳ En traitement</span>}
@@ -3148,7 +3331,234 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                 </table>
               </div>
             </div>
-          )}         
+          )}  
+
+          {activeMenu === 'notes_apprenants' && (
+            <div className="tab-content-fade">
+              <div className="dashboard-header-line" style={{ marginBottom: '18px' }}>
+                <div>
+                  <h1 className="main-dashboard-title">Notes & Relevés Officiels des Apprenants</h1>
+                  <p className="dashboard-subtitle">Importation automatisée des procès-verbaux de notes (Excel) et consultation des relevés par candidat</p>
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dadce0', borderLeft: '4px solid #137333', padding: '16px 20px', marginBottom: '20px' }}>
+                <h4 style={{ margin: '0 0 6px 0', color: '#137333', fontSize: '0.95rem' }}>
+                  📊 Importer les Notes depuis un Fichier Excel (.xlsx)
+                </h4>
+                <p style={{ margin: '0 0 12px 0', fontSize: '0.8rem', color: '#5f6368' }}>
+                  Colonnes requises : <strong>Matricule (IM)</strong> | <strong>Nom</strong> | <strong>Prénoms</strong> | suivi des intitulés exacts des matières de l'examen. Toute ligne absente de la Liste des Apprenants est ignorée.
+                </p>
+
+                <form onSubmit={handleImporterNotesExcel} style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <select
+                    required
+                    value={examenImportNotesId}
+                    onChange={(e) => setExamenImportNotesId(e.target.value)}
+                    style={{ height: '38px', padding: '0 12px', borderRadius: '4px', border: '1px solid #ccc', backgroundColor: '#fff', minWidth: '220px' }}
+                  >
+                    <option value="">-- Choisir l'Examen concerné --</option>
+                    {(listeExamens || []).map((ex) => {
+                      const idEx = ex.id_examen ?? ex.id;
+                      return (
+                        <option key={idEx} value={idEx}>
+                          {ex.nom_exam || ex.nom_examen}
+                        </option>
+                      );
+                    })}
+                  </select>
+
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls"
+                    required
+                    onChange={(e) => setFichierExcelNotes(e.target.files ? e.target.files[0] : null)}
+                    style={{ fontSize: '0.85rem' }}
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={importNotesLoading}
+                    style={{
+                      height: '38px',
+                      backgroundColor: '#137333',
+                      color: '#ffffff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      padding: '0 18px',
+                      fontWeight: 'bold',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    {importNotesLoading ? '⏳ Importation en cours...' : '📥 Importer les Notes Excel'}
+                  </button>
+                </form>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: '20px', alignItems: 'start' }}>
+                {(() => {
+                  const candidatsAvecNotes = (apprenants || []).filter((app) => {
+                    const idApp = Number(app.id_apprenant ?? app.id);
+                    return idsApprenantsAvecNotes.map(Number).includes(idApp);
+                  });
+
+                  const candidatsFiltres = candidatsAvecNotes.filter((a) => {
+                    const q = searchNoteApprenant.toLowerCase();
+                    const nomA = (a.nom || a.nom_apprenant || '').toLowerCase();
+                    const prenomA = (a.prenom || a.prenom_apprenant || '').toLowerCase();
+                    const imA = (a.im || a.im_apprenant || a.matricule || '').toLowerCase();
+                    return !q || nomA.includes(q) || prenomA.includes(q) || imA.includes(q);
+                  });
+
+                  return (
+                    <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dadce0', padding: '16px' }}>
+                      <h4 style={{ margin: '0 0 12px 0', color: '#002f6c' }}>
+                        Candidats avec Notes Importées ({candidatsAvecNotes.length})
+                      </h4>
+
+                      <input
+                        type="text"
+                        placeholder="Filtrer par Matricule, Nom ou Prénom..."
+                        value={searchNoteApprenant}
+                        onChange={(e) => setSearchNoteApprenant(e.target.value)}
+                        style={{ width: '100%', padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', marginBottom: '12px', boxSizing: 'border-box' }}
+                      />
+
+                      <div style={{ maxHeight: '460px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        {candidatsFiltres.length === 0 ? (
+                          <div style={{ textAlign: 'center', padding: '30px 15px', color: '#777', fontSize: '0.84rem', fontStyle: 'italic', backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
+                            📭 Aucune note n'a encore été importée pour les apprenants inscrits.
+                          </div>
+                        ) : (
+                          candidatsFiltres.map((app) => {
+                            const idApp = app.id_apprenant ?? app.id;
+                            const estSelectionne = (selectedApprenantNote?.id_apprenant ?? selectedApprenantNote?.id) === idApp;
+                            const nomAffiche = `${app.nom || app.nom_apprenant || ''} ${app.prenom || app.prenom_apprenant || ''}`.trim();
+                            const imAffiche = app.im || app.im_apprenant || app.matricule || 'Sans IM';
+                            const examAffiche = app.nom_examen || app.nom_exam || app.examen || 'Examen';
+
+                            return (
+                              <div
+                                key={idApp}
+                                onClick={() => consulterReleveApprenant(app)}
+                                style={{
+                                  padding: '10px 12px',
+                                  borderRadius: '6px',
+                                  border: estSelectionne ? '1.5px solid #1a73e8' : '1px solid #e8eaed',
+                                  backgroundColor: estSelectionne ? '#e8f0fe' : '#f8f9fa',
+                                  cursor: 'pointer',
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center'
+                                }}
+                              >
+                                <div>
+                                  <div style={{ fontWeight: 'bold', fontSize: '0.88rem', color: '#202124' }}>
+                                    {nomAffiche}
+                                  </div>
+                                  <div style={{ fontSize: '0.76rem', color: '#5f6368' }}>
+                                    <strong>{imAffiche}</strong> • {examAffiche}
+                                  </div>
+                                </div>
+                                <span style={{ fontSize: '0.74rem', fontWeight: 'bold', padding: '3px 8px', borderRadius: '10px', backgroundColor: '#ffffff', color: '#002f6c', border: '1px solid #dadce0' }}>
+                                  {app.mention || 'Consulter'}
+                                </span>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dadce0', padding: '20px' }}>
+                  {!selectedApprenantNote ? (
+                    <div style={{ textAlign: 'center', padding: '60px 20px', color: '#5f6368' }}>
+                      <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>📋</div>
+                      <h4 style={{ margin: '0 0 6px 0', color: '#202124' }}>Aucun relevé sélectionné</h4>
+                      <p style={{ margin: 0, fontSize: '0.85rem' }}>
+                        Sélectionnez un candidat à gauche pour consulter ses notes importées par matière, sa moyenne générale et sa mention.
+                      </p>
+                    </div>
+                  ) : loadingReleve ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#5f6368' }}>Chargement du relevé de notes...</div>
+                  ) : !bilanNoteActuel ? (
+                    <div style={{ textAlign: 'center', padding: '30px', color: '#c5221f' }}>❌ Impossible de récupérer les données de ce candidat.</div>
+                  ) : (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e0e0e0', paddingBottom: '14px', marginBottom: '16px' }}>
+                        <div>
+                          <h3 style={{ margin: 0, color: '#002f6c', fontSize: '1.08rem' }}>
+                            {selectedApprenantNote.nom} {selectedApprenantNote.prenom}
+                          </h3>
+                          <span style={{ fontSize: '0.82rem', color: '#5f6368' }}>
+                            Matricule : <strong>{selectedApprenantNote.im || selectedApprenantNote.matricule}</strong> • Examen : <strong>{selectedApprenantNote.nom_examen || selectedApprenantNote.examen}</strong>
+                          </span>
+                        </div>
+
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: bilanNoteActuel.moyenne_generale >= 10 ? '#137333' : '#c5221f' }}>
+                            Moyenne : {bilanNoteActuel.moyenne_generale} / 20
+                          </div>
+                          <span style={{ fontSize: '0.78rem', fontWeight: 'bold', padding: '2px 10px', borderRadius: '10px', backgroundColor: '#e6f4ea', color: '#137333' }}>
+                            Mention : {bilanNoteActuel.mention_calculee}
+                          </span>
+                        </div>
+                      </div>
+
+                      <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr>
+                            <th>Matière</th>
+                            <th style={{ width: '100px', textAlign: 'center' }}>Coeff.</th>
+                            <th style={{ width: '120px', textAlign: 'center' }}>Note (/ 20)</th>
+                            <th style={{ width: '120px', textAlign: 'center' }}>Points</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(bilanNoteActuel.lignes || []).length === 0 ? (
+                            <tr>
+                              <td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: '#777', fontStyle: 'italic' }}>
+                                Aucune matière configurée pour cet examen.
+                              </td>
+                            </tr>
+                          ) : (
+                            bilanNoteActuel.lignes.map((ligne) => (
+                              <tr key={ligne.id_matiere}>
+                                <td>
+                                  <strong>{ligne.nom_matiere}</strong>
+                                  <div style={{ fontSize: '0.74rem', color: '#5f6368' }}>{ligne.type_epreuve}</div>
+                                </td>
+                                                      <td style={{ textAlign: 'center', fontWeight: 'bold' }}>{ligne.coefficient}</td>
+                                <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#1a73e8' }}>
+                                  {ligne.note_sur_20.toFixed(2)}
+                                </td>
+                                <td style={{ textAlign: 'center', fontWeight: 'bold', color: '#002f6c' }}>
+                                  {ligne.note_ponderee.toFixed(2)}
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                        {(bilanNoteActuel.lignes || []).length > 0 && (
+                          <tfoot>
+                            <tr style={{ backgroundColor: '#f8f9fa', fontWeight: 'bold' }}>
+                              <td>TOTAL GÉNÉRAL</td>
+                              <td style={{ textAlign: 'center' }}>{bilanNoteActuel.total_coefficients}</td>
+                              <td style={{ textAlign: 'center' }}>—</td>
+                              <td style={{ textAlign: 'center', color: '#002f6c' }}>{bilanNoteActuel.total_points}</td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            </div>
+          )}
         
           {activeMenu === 'liste_demandes' && (
             <div>
@@ -4212,6 +4622,9 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
           )}
 
           {activeMenu === 'liste_examens' && (
+            <div>
+            {!selectedExamMatieres ? (
+
             <div className="tab-content-fade">
               <div className="dashboard-header-line">
                 <div>
@@ -4255,9 +4668,9 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                   <thead>
                     <tr>
                       <th style={{ width: '150px' }}>Code Examen (ID)</th>
-                      <th>Intitulé de l'Examen</th>
+                      <th>Examen existe</th>
                       <th>Description / Remarques</th>
-                      <th style={{ textAlign: 'center', width: '80px' }}>Actions</th>
+                      <th style={{ textAlign: 'center', width: '150px' }}>Actions / Matières</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -4301,9 +4714,9 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                                   <div className="dropdown-action-menu" style={{
                                     position: 'absolute', right: '10px', top: '30px', backgroundColor: '#ffffff',
                                     border: '1px solid #dadce0', borderRadius: '4px', boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-                                    zIndex: 110, minWidth: '130px', padding: '4px 0'
+                                    zIndex: 110, minWidth: '150px', padding: '4px 0'
                                   }}>
-                                    <button 
+                                    <div 
                                       type="button" 
                                       className="dropdown-action-item"
                                       onClick={() => {
@@ -4312,15 +4725,55 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                                         setShowExamenModal(true);
                                         setOpenExamenMenuId(null);
                                       }}
+                                      style={{
+                                        padding: '9px 14px',
+                                        fontSize: '0.85rem',
+                                        color: '#353436',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        borderBottom: '1px solid #f1f3f4',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        width: '100%'
+                                      }}
+                                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f3f4'; }}
+                                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                                     >
                                       ✏️ Modifier
-                                    </button>
+                                    </div>
+                                    
+                                    <div
+                                      onClick={() => {
+                                        setOpenExamenMenuId(null);
+                                        ouvrirListeMatieres(ex);
+                                      }}
+                                      style={{
+                                        padding: '9px 14px',
+                                        fontSize: '0.85rem',
+                                        color: '#353436',
+                                        fontWeight: '600',
+                                        cursor: 'pointer',
+                                        borderBottom: '1px solid #f1f3f4',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px'
+                                      }}
+                                      onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f3f4'; }}
+                                      onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
+                                    >
+                                      <span>📚</span> Liste Matière
+                                    </div>
+
                                     <button 
                                       type="button" 
                                       className="dropdown-action-item btn-item-delete"
                                       onClick={() => {
                                         handleSupprimerExamen(idActuel);
                                         setOpenExamenMenuId(null);
+                                      }}
+                                      style={{
+                                        width: '100%'
                                       }}
                                     >
                                       🗑️ Supprimer
@@ -4337,8 +4790,252 @@ const soumettreDemandeEnLigne = async (donneesFormulaire) => {
                 </table>
               </div>
             </div>
+
+            ) : (
+                <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #dadce0', padding: '24px' }}>
+                  
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    alignItems: 'center', 
+                    borderBottom: '1px solid #e0e0e0', 
+                    paddingBottom: '16px', 
+                    marginBottom: '20px',
+                    flexWrap: 'wrap',
+                    gap: '12px'
+                  }}>
+                    <div>
+                      <h3 style={{ margin: 0, color: '#002f6c', fontSize: '1.15rem', fontWeight: '700' }}>
+                        📚 Programme & Matières : {selectedExamMatieres.nom_exam || selectedExamMatieres.nom_examen}
+                      </h3>
+                      <p style={{ margin: '4px 0 0 0', fontSize: '0.84rem', color: '#5f6368' }}>
+                        Code officiel : <strong>EXAM-{selectedExamMatieres.id_examen ?? selectedExamMatieres.id}</strong> • {listeMatieresExam.length} matière(s) enregistrée(s)
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedExamMatieres(null)}
+                      style={{
+                        padding: '9px 16px',
+                        backgroundColor: '#f1f3f4',
+                        border: '1px solid #dadce0',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: '600',
+                        color: '#333',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      ← Retour aux Examens
+                    </button>
+                  </div>
+
+                  <div style={{ backgroundColor: '#f8f9fa', padding: '16px', borderRadius: '8px', border: '1px solid #e8eaed', marginBottom: '24px' }}>
+                    <h4 style={{ margin: '0 0 12px 0', color: '#002f6c', fontSize: '0.92rem' }}>
+                      {editingMatiereId ? '✏️ Modifier la matière sélectionnée' : '➕ Ajouter une matière au référentiel de cet examen'}
+                    </h4>
+                    <form onSubmit={handleSaveMatiere} style={{ display: 'grid', gridTemplateColumns: '2.5fr 1.2fr 1fr auto', gap: '12px', alignItems: 'end' }}>
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', marginBottom: '4px', color: '#555' }}>Intitulé de la matière *</label>
+                        <input
+                          type="text"
+                          required
+                          placeholder="Ex: Mathématiques Appliquées, Technologie..."
+                          value={nouvelleMatiere.nom_matiere}
+                          onChange={(e) => setNouvelleMatiere({ ...nouvelleMatiere, nom_matiere: e.target.value })}
+                          style={{ width: '100%', height: '38px', padding: '0 12px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        />
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', marginBottom: '4px', color: '#555' }}>Nature de l'épreuve</label>
+                        <select
+                          value={nouvelleMatiere.type_epreuve}
+                          onChange={(e) => setNouvelleMatiere({ ...nouvelleMatiere, type_epreuve: e.target.value })}
+                          style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '5px', border: '1px solid #ccc', backgroundColor: '#fff' }}
+                        >
+                          <option value="Écrite">Écrite</option>
+                          <option value="Pratique">Pratique</option>
+                          <option value="Orale">Orale</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', marginBottom: '4px', color: '#555' }}>Coefficient *</label>
+                        <input
+                          type="number"
+                          min="1"
+                          max="10"
+                          required
+                          value={nouvelleMatiere.coefficient}
+                          onChange={(e) => setNouvelleMatiere({ ...nouvelleMatiere, coefficient: e.target.value })}
+                          style={{ width: '100%', height: '38px', padding: '0 10px', borderRadius: '5px', border: '1px solid #ccc', boxSizing: 'border-box' }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button
+                          type="submit"
+                          style={{
+                            height: '38px',
+                            backgroundColor: editingMatiereId ? '#56a35a' : '#1a73e8',
+                            color: '#ffffff',
+                            border: 'none',
+                            borderRadius: '5px',
+                            padding: '0 16px',
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {editingMatiereId ? '✅ Mettre à jour' : '💾 Enregistrer'}
+                        </button>
+
+                        {editingMatiereId && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingMatiereId(null);
+                              setNouvelleMatiere({ nom_matiere: '', coefficient: 1, type_epreuve: 'Écrite' });
+                            }}
+                            style={{
+                              height: '38px',
+                              backgroundColor: '#f1f3f4',
+                              color: '#333',
+                              border: '1px solid #ccc',
+                              borderRadius: '5px',
+                              padding: '0 12px',
+                              fontWeight: '600',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Annuler
+                          </button>
+                        )}
+                      </div>
+                    </form>
+                  </div>
+
+                  <div className="data-table-container">
+                    <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr>
+                          <th style={{ width: '120px' }}>Code Matière</th>
+                          <th>Intitulé de la Matière</th>
+                          <th style={{ width: '150px', textAlign: 'center' }}>Nature de l'épreuve</th>
+                          <th style={{ width: '120px', textAlign: 'center' }}>Coefficient</th>
+                          <th style={{ width: '100px', textAlign: 'center' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {listeMatieresExam.length === 0 ? (
+                          <tr>
+                            <td colSpan="5" className="no-entries" style={{ textAlign: 'center', padding: '25px', color: '#777', fontStyle: 'italic' }}>
+                              📭 Aucune matière n'est encore configurée pour l'examen <strong>{selectedExamMatieres.nom_exam || selectedExamMatieres.nom_examen}</strong>.
+                            </td>
+                          </tr>
+                        ) : (
+                          listeMatieresExam.map((matiere, index) => {
+                            const estPratique = matiere.type_epreuve === 'Pratique';
+                            const estOrale = matiere.type_epreuve === 'Orale';
+                            const badgeBg = estPratique ? '#e6f4ea' : (estOrale ? '#fef7e0' : '#e8f0fe');
+                            const badgeColor = estPratique ? '#137333' : (estOrale ? '#b06000' : '#1a73e8');
+
+                            return (
+                              <tr key={matiere.id_matiere ?? index}>
+                                <td><strong>MAT-{matiere.id_matiere ?? index + 1}</strong></td>
+                                
+                                <td style={{ color: '#002f6c', fontWeight: '600' }}>
+                                  {matiere.nom_matiere}
+                                </td>
+                                
+                                <td style={{ textAlign: 'center' }}>
+                                  <span style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '12px',
+                                    fontSize: '0.78rem',
+                                    fontWeight: 'bold',
+                                    backgroundColor: badgeBg,
+                                    color: badgeColor
+                                  }}>
+                                    {matiere.type_epreuve}
+                                  </span>
+                                </td>
+                                
+                                <td style={{ textAlign: 'center' }}>
+                                  <span style={{
+                                    backgroundColor: '#f1f3f4',
+                                    color: '#202124',
+                                    padding: '4px 10px',
+                                    borderRadius: '4px',
+                                    fontWeight: 'bold',
+                                    fontSize: '0.85rem'
+                                  }}>
+                                    {matiere.coefficient}
+                                  </span>
+                                </td>
+                                
+                                <td style={{ textAlign: 'center' }}>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const idMat = matiere.id_matiere ?? matiere.id;
+                                      setEditingMatiereId(idMat);
+                                      setNouvelleMatiere({
+                                        nom_matiere: matiere.nom_matiere || '',
+                                        coefficient: matiere.coefficient || 1,
+                                        type_epreuve: matiere.type_epreuve || 'Écrite'
+                                      });
+                                    }}
+                                    title={`Modifier ${matiere.nom_matiere}`}
+                                    style={{
+                                      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                                      width: '32px', height: '32px', backgroundColor: '#e8f0fe', color: '#1a73e8',
+                                      border: '1px solid #d2e3fc', borderRadius: '6px', cursor: 'pointer'
+                                    }}
+                                  >
+                                    ✏️
+                                  </button>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSupprimerMatiere(matiere.id_matiere)}
+                                    title={`Supprimer ${matiere.nom_matiere}`}
+                                    style={{
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      width: '32px',
+                                      height: '32px',
+                                      backgroundColor: '#fce8e6',
+                                      color: '#c5221f',
+                                      border: '1px solid #fad2cf',
+                                      borderRadius: '6px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    🗑️
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+
+                </div>
+              )}
+            </div>
           )}
-         
+
+          
+        
           {activeMenu === 'liste_secteurs' && (
             <div>
               <div className="section-title">Nomenclature des Secteurs d'Enseignement Technique</div>

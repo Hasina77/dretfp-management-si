@@ -114,6 +114,15 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterT
         </li>
 
         <li 
+          className={`sidebar-item ${activeMenu === 'notes_apprenants' ? 'active' : ''}`}
+          onClick={() => setActiveMenu('notes_apprenants')}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: isSidebarOpen ? 'flex-start' : 'center', gap: '14px', padding: '12px 1.5rem', cursor: 'pointer', color: '#5f6368', whiteSpace: 'nowrap' }}
+        >
+          <LuCalendar style={{ fontSize: '1.2rem', color: '#5f6368', flexShrink: 0 }} />
+          {isSidebarOpen && <span>Note des apprenants</span>}
+        </li>
+
+        <li 
           className={`sidebar-item ${activeMenu === 'liste_demandes' ? 'active' : ''}`} 
           onClick={() => {
             setActiveMenu('liste_demandes');
@@ -212,7 +221,7 @@ const Sidebar = ({ activeMenu, setActiveMenu, notifCount, setNotifCount, filterT
           }}
         >
           <LuAward style={{ fontSize: '1.35rem', flexShrink: 0 }} />
-          {isSidebarOpen && <span>Examens</span>}
+          {isSidebarOpen && <span>Examens & Matières</span>}
         </li>
 
         <li 
